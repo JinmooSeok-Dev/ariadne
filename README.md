@@ -29,19 +29,27 @@ pip install -e ".[dev]"
 cd ariadne-core
 source .venv/bin/activate
 
-# 현재 시스템 토폴로지 보기
+# 현재 시스템 토폴로지 보기 (일반 유저)
 ariadne show
 
-# PCIe, IOMMU 등 상세 정보 수집 시 sudo 필요
-sudo .venv/bin/ariadne show
+# 상세 정보 포함 (sudo 권장)
+sudo $(which ariadne) show
 
 # JSON snapshot 저장/로드 (오프라인 분석, 팀 공유용)
-ariadne snapshot my-server.json
+sudo $(which ariadne) snapshot my-server.json
 ariadne load my-server.json
 ```
 
-> **sudo가 필요한 이유**: PCIe config space (`lspci -vv`), DIMM 정보 (`dmidecode`),
-> 일부 sysfs 파일은 root 권한이 필요하다. 기본 CPU/NUMA 정보는 일반 유저로도 동작한다.
+> **sudo 권장**: 최대한 많은 정보를 수집하려면 sudo로 실행한다.
+>
+> | 정보 | 일반 유저 | sudo |
+> |------|:--------:|:----:|
+> | CPU/NUMA 토폴로지 | ✅ | ✅ |
+> | Cache 계층 | ✅ | ✅ |
+> | 메모리 총 용량 | ✅ | ✅ |
+> | DIMM 상세 (DDR 타입, 속도, 채널 수, 이론 BW) | ❌ | ✅ |
+> | PCIe config space (속도, BAR, capability) | ❌ | ✅ |
+> | IOMMU 그룹 | ✅ | ✅ |
 
 ## 프로젝트 구성
 

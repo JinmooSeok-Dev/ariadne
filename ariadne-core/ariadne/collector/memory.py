@@ -3,6 +3,9 @@
 데이터 소스:
   /proc/meminfo
   dmidecode --type 17 (DIMM 정보, root 필요)
+
+root 권한 없이는 총 용량만 수집 가능.
+sudo로 실행하면 DDR 타입, 속도, 채널 수, 이론 BW까지 수집.
 """
 
 import subprocess
@@ -46,16 +49,21 @@ def collect_dimm_info() -> list[MemoryInfo]:
     elif ":" in line:
       key, _, val = line.partition(":")
       val = val.strip()
-      if key == "Size" and val != "No Module Installed":
+      if key == "Size" and val not in ("No Module Installed", "Not Installed", ""):
         parts = val.split()
-        if len(parts) == 2:
-          size = int(parts[0])
-          if parts[1] == "GB":
-            size *= 1024
-          current["size_mb"] = size
-      elif key == "Speed" and val not in ("Unknown", ""):
-        current["speed_mhz"] = int(val.split()[0]) if val.split()[0].isdigit() else 0
-      elif key == "Type":
+        if len(parts) >= 2:
+          try:
+            size = int(parts[0])
+            if parts[1].upper() in ("GB", "GIB"):
+              size *= 1024
+            current["size_mb"] = size
+          except ValueError:
+            pass
+      elif key in ("Speed", "Configured Memory Speed") and "speed_mhz" not in current:
+        speed_val = _parse_speed(val)
+        if speed_val > 0:
+          current["speed_mhz"] = speed_val
+      elif key == "Type" and val not in ("Unknown", "Other", ""):
         current["type"] = val
       elif key == "Locator":
         current["locator"] = val
@@ -64,6 +72,19 @@ def collect_dimm_info() -> list[MemoryInfo]:
     dimms.append(current)
 
   return _aggregate_dimms(dimms)
+
+
+def _parse_speed(val: str) -> int:
+  """'5600 MT/s', '4800 MHz', '3200' 등 다양한 형식 파싱."""
+  if not val or val in ("Unknown", ""):
+    return 0
+  parts = val.split()
+  if not parts:
+    return 0
+  try:
+    return int(parts[0])
+  except ValueError:
+    return 0
 
 
 def _aggregate_dimms(dimms: list[dict]) -> list[MemoryInfo]:

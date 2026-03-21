@@ -29,12 +29,23 @@ def render_topology(topo: SystemTopology) -> None:
       if l3:
         socket_tree.add(f"[dim]L3 Cache: {l3.size_kb // 1024}MB (shared)[/]")
 
-      for core in cores[:4]:
-        threads = ", ".join(str(t) for t in core.thread_siblings)
-        smt = " (SMT)" if len(core.thread_siblings) > 1 else ""
-        socket_tree.add(f"Core {core.core_id}: CPU {threads}{smt}")
-      if len(cores) > 4:
-        socket_tree.add(f"[dim]... ({len(cores) - 4} more cores)[/]")
+      p_cores = [c for c in cores if len(c.thread_siblings) > 1]
+      e_cores = [c for c in cores if len(c.thread_siblings) == 1]
+
+      if p_cores and e_cores:
+        p_tree = socket_tree.add(f"[bold]P-cores[/] ({len(p_cores)} cores, {sum(len(c.thread_siblings) for c in p_cores)} threads)")
+        for core in p_cores:
+          threads = ", ".join(str(t) for t in core.thread_siblings)
+          p_tree.add(f"Core {core.core_id}: CPU {threads} (SMT)")
+
+        e_tree = socket_tree.add(f"[bold]E-cores[/] ({len(e_cores)} cores)")
+        for core in e_cores:
+          e_tree.add(f"Core {core.core_id}: CPU {core.thread_siblings[0]}")
+      else:
+        for core in cores:
+          threads = ", ".join(str(t) for t in core.thread_siblings)
+          smt = " (SMT)" if len(core.thread_siblings) > 1 else ""
+          socket_tree.add(f"Core {core.core_id}: CPU {threads}{smt}")
 
     mc_tree = node_tree.add(f"[bold blue]Memory Controller[/]")
     if topo.memory:
