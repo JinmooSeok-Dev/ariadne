@@ -273,12 +273,13 @@ function drawEdges() {
     pathEl.setAttribute('id', eId);
     svg.appendChild(pathEl);
 
-    // BW 라벨
+    // BW 라벨 — edge 가로 구간 중간에 배치
     if (e.data.bandwidth_gbps) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', mx + 2);
-      text.setAttribute('y', Math.min(y1, y2) - 4);
+      text.setAttribute('x', (mx + x2) / 2);
+      text.setAttribute('y', y2 - 5);
       text.setAttribute('class', 'edge-bw');
+      text.setAttribute('text-anchor', 'middle');
       text.textContent = e.data.bandwidth_gbps + ' GB/s';
       svg.appendChild(text);
     }
