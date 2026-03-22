@@ -405,37 +405,42 @@
 
       // Links
       const vis=data.links.filter(l=>positions[l.source]&&positions[l.target]);
+      _computeEdgeOffsets(vis);
       const linkG=g.append('g');
 
-      // 투명한 굵은 히트 영역 (hover/click 용)
-      const linkHitAreas=linkG.selectAll('path.link-hit').data(vis).join('path')
+      // 히트 영역 + 보이는 edge를 쌍으로 생성 (겹침 방지를 위해 같은 offset 사용)
+      const linkPairs = linkG.selectAll('g.link-pair').data(vis).join('g').attr('class','link-pair');
+
+      // 투명한 굵은 히트 영역
+      linkPairs.append('path')
         .attr('class','link-hit')
-        .attr('d',d=>_elbow(d))
+        .attr('d',(d,i)=>_elbow(d,i))
         .attr('stroke','transparent')
         .attr('stroke-width', 20)
         .attr('fill','none')
         .attr('cursor','pointer');
 
       // 실제 보이는 edge
-      currentLinkEls=linkG.selectAll('path.link-line').data(vis).join('path')
+      currentLinkEls = linkPairs.append('path')
         .attr('class','link-line')
-        .attr('d',d=>_elbow(d))
+        .attr('d',(d,i)=>_elbow(d,i))
         .attr('stroke',d=>_edgeColor(d))
         .attr('stroke-width',d=>_edgeWidth(d))
         .attr('stroke-dasharray',d=>d.type==='internal'?'4,3':null)
         .attr('stroke-opacity',d=>d.type==='internal'?0.3:0.7)
-        .attr('pointer-events','none');  // 클릭은 히트 영역이 처리
+        .attr('pointer-events','none');
 
       // 히트 영역에 이벤트 바인딩
-      linkHitAreas
+      linkPairs.select('.link-hit')
         .on('mouseover',function(e,d){
-          d3.select(this.nextSibling).attr('stroke','#fff').attr('stroke-opacity',1).attr('stroke-width',6);
+          d3.select(this.parentNode).select('.link-line')
+            .attr('stroke','#fff').attr('stroke-opacity',1).attr('stroke-width',6);
           showEdgeTip(e,d);
         })
         .on('mouseout',function(e,d){
-          d3.select(this.nextSibling).attr('stroke',_edgeColor(d)).attr('stroke-opacity',d.type==='internal'?0.3:0.7).attr('stroke-width',_edgeWidth(d));
+          d3.select(this.parentNode).select('.link-line')
+            .attr('stroke',_edgeColor(d)).attr('stroke-opacity',d.type==='internal'?0.3:0.7).attr('stroke-width',_edgeWidth(d));
           hideTip();
-          // Re-apply trace path
           if(traceHistory.length){
             const r=traceHistory[0].result;
             if(r.path?.length>1){
@@ -446,9 +451,14 @@
           }
         });
 
-      linkG.selectAll('text.link-bw').data(vis.filter(l=>l.bandwidth_gbps)).join('text')
+      const bwLinks = vis.filter(l=>l.bandwidth_gbps);
+      linkG.selectAll('text.link-bw').data(bwLinks).join('text')
         .attr('class','link-bw')
-        .attr('x',d=>(positions[d.source].x+positions[d.target].x)/2+10)
+        .attr('x',(d,i)=>{
+          const origIdx = vis.indexOf(d);
+          const off = edgeOffsets[origIdx] || 0;
+          return (positions[d.source].x + off + positions[d.target].x) / 2 + 10;
+        })
         .attr('y',d=>(positions[d.source].y+positions[d.target].y)/2+14)
         .text(d=>`${d.bandwidth_gbps} GB/s`);
 
@@ -494,11 +504,38 @@
       t.innerHTML=h;t.style.display='block';t.style.left=(e.pageX+14)+'px';t.style.top=(e.pageY-10)+'px';
     }
 
-    function _elbow(d){
+    // 같은 source에서 나오는 edge들에 오프셋을 부여하여 겹침 방지
+    let edgeOffsets = {};
+    function _computeEdgeOffsets(links) {
+      edgeOffsets = {};
+      const sourceGroups = {};
+      links.forEach((l, i) => {
+        const key = l.source;
+        if (!sourceGroups[key]) sourceGroups[key] = [];
+        sourceGroups[key].push(i);
+      });
+      for (const [src, indices] of Object.entries(sourceGroups)) {
+        if (indices.length <= 1) {
+          edgeOffsets[indices[0]] = 0;
+          continue;
+        }
+        const spread = Math.min(12, 60 / indices.length);
+        const startOff = -(indices.length - 1) * spread / 2;
+        indices.forEach((idx, j) => {
+          edgeOffsets[idx] = startOff + j * spread;
+        });
+      }
+    }
+
+    function _elbow(d, idx) {
       const s=positions[d.source],t=positions[d.target];
       if(!s||!t)return'';
-      const x1=s.x,y1=s.y+(s.h||40)/2,x2=t.x,y2=t.y-(t.h||40)/2,my=(y1+y2)/2;
-      return Math.abs(x1-x2)<2?`M${x1},${y1}L${x2},${y2}`:`M${x1},${y1}L${x1},${my}L${x2},${my}L${x2},${y2}`;
+      const off = edgeOffsets[idx] || 0;
+      const x1=s.x + off, y1=s.y+(s.h||40)/2;
+      const x2=t.x, y2=t.y-(t.h||40)/2;
+      const my=(y1+y2)/2;
+      if(Math.abs(x1-x2)<2) return `M${x1},${y1}L${x2},${y2}`;
+      return `M${x1},${y1}L${x1},${my}L${x2},${my}L${x2},${y2}`;
     }
     function _parent(id,links){for(const l of links)if(l.target===id)return l.source;return null;}
     function _descendants(id,links){const r=new Set(),q=[id];while(q.length){const c=q.shift();for(const l of links)if(l.source===c&&!r.has(l.target)&&positions[l.target]){r.add(l.target);q.push(l.target);}}return[...r];}
