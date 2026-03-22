@@ -148,10 +148,11 @@
     .node-label { font-size: 10px; fill: #ddd; pointer-events: none; text-anchor: middle; }
     .node-sublabel { font-size: 9px; fill: #888; pointer-events: none; text-anchor: middle; }
 
-    .link-line { stroke-opacity: 0.5; fill: none; }
+    .link-line { fill: none; }
+    .link-line:hover { stroke-opacity: 1 !important; stroke-width: 4 !important; }
     .link-bw { font-size: 8px; fill: #888; text-anchor: middle; }
 
-    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 3 !important; }
+    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 5 !important; filter: drop-shadow(0 0 4px #e94560); }
     .node-selected .node-rect { stroke: #e94560 !important; stroke-width: 3 !important; }
     .node-source .node-rect { stroke: #22c55e !important; stroke-width: 3 !important; }
     .node-dest .node-rect { stroke: #f59e0b !important; stroke-width: 3 !important; }
@@ -384,27 +385,33 @@
       }
 
       const linkGroup = g.append('g');
-      const linkElements = linkGroup.selectAll('line')
-        .data(data.links.filter(l => positions[l.source] && positions[l.target]))
-        .join('line')
+      const visibleLinks = data.links.filter(l => positions[l.source] && positions[l.target]);
+
+      const linkElements = linkGroup.selectAll('path')
+        .data(visibleLinks)
+        .join('path')
         .attr('class', 'link-line')
-        .attr('x1', d => positions[d.source].x)
-        .attr('y1', d => positions[d.source].y + (positions[d.source].h || 40) / 2)
-        .attr('x2', d => positions[d.target].x)
-        .attr('y2', d => positions[d.target].y - (positions[d.target].h || 40) / 2)
-        .attr('stroke', d => d.type === 'pcie' ? '#e9456088' : '#ffffff22')
-        .attr('stroke-width', d => {
-          if (!d.bandwidth_gbps) return 1;
-          return Math.max(1, Math.min(5, d.bandwidth_gbps / 8));
+        .attr('d', d => _elbowPath(d, positions))
+        .attr('stroke', d => {
+          if (d.type === 'pcie') return '#e94560';
+          if (d.type === 'memory') return '#3b82f6';
+          if (d.type === 'upi') return '#f0c040';
+          return '#555';
         })
-        .attr('stroke-dasharray', d => d.type === 'internal' ? '3,3' : null);
+        .attr('stroke-width', d => {
+          if (d.type === 'internal') return 1.5;
+          if (!d.bandwidth_gbps) return 2;
+          return Math.max(2, Math.min(6, d.bandwidth_gbps / 5));
+        })
+        .attr('stroke-dasharray', d => d.type === 'internal' ? '4,3' : null)
+        .attr('stroke-opacity', d => d.type === 'internal' ? 0.4 : 0.7);
 
       linkGroup.selectAll('text')
-        .data(data.links.filter(l => l.bandwidth_gbps && positions[l.source] && positions[l.target]))
+        .data(visibleLinks.filter(l => l.bandwidth_gbps))
         .join('text')
         .attr('class', 'link-bw')
-        .attr('x', d => (positions[d.source].x + positions[d.target].x) / 2)
-        .attr('y', d => (positions[d.source].y + positions[d.target].y) / 2 + 12)
+        .attr('x', d => (positions[d.source].x + positions[d.target].x) / 2 + 8)
+        .attr('y', d => (positions[d.source].y + positions[d.target].y) / 2 + 16)
         .text(d => `${d.bandwidth_gbps} GB/s`);
 
       const nodeGroup = g.append('g');
@@ -467,6 +474,25 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') clearAll();
       });
+    }
+
+    function _elbowPath(d, positions) {
+      const src = positions[d.source];
+      const tgt = positions[d.target];
+      if (!src || !tgt) return '';
+
+      const x1 = src.x;
+      const y1 = src.y + (src.h || 40) / 2;
+      const x2 = tgt.x;
+      const y2 = tgt.y - (tgt.h || 40) / 2;
+
+      const midY = (y1 + y2) / 2;
+
+      if (Math.abs(x1 - x2) < 2) {
+        return `M${x1},${y1} L${x2},${y2}`;
+      }
+
+      return `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`;
     }
 
     function _findParent(nodeId, links) {
