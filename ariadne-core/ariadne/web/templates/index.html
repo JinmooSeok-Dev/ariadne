@@ -510,8 +510,8 @@ function renderTrace(r) {
     const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
     if(i===0)h+=`<div class="pnode src">${s.from_name}</div>`;
     const lt=(s.link_type||'').includes('pcie')?'PCIe':(s.link_type||'').includes('memory')?'DDR':'→';
-    const bw=s.effective_bw_gbps?` ${s.effective_bw_gbps}/${s.theoretical_bw_gbps} GB/s`:'';
-    h+=`<div class="plink" data-seg="${i}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?'<span style="color:#e94560">◄ BN</span>':''}</div>`;
+    const bw=s.effective_bw_gbps?` · ${s.effective_bw_gbps}/${s.theoretical_bw_gbps} GB/s`:'';
+    h+=`<div class="plink" data-seg="${i}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?' <span style="color:#e94560">◄ BN</span>':''}</div>`;
     h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}" data-seg="${i}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})">${s.to_name}</div>`;
   }
   h+='</div>';
