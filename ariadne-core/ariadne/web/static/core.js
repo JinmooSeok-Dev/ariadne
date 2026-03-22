@@ -109,7 +109,8 @@ function buildNode(id) {
   const chId = ID.children(id);
 
   let h = `<div class="htree">`;
-  h += `<div class="htree-node" id="${ID.node(id)}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')" oncontextmenu="showCtx(event,'${id}')">`;
+  const dimClass = TRACEABLE.has(node.type) ? '' : ' htree-dim';
+  h += `<div class="htree-node${dimClass}" id="${ID.node(id)}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')" oncontextmenu="showCtx(event,'${id}')">`;
   if (kids.length > 0) h += `<span class="htree-toggle" onclick="event.stopPropagation();fold('${chId}',this)">▼</span>`;
   h += `<span class="htree-dot" style="background:${color}"></span>`;
   h += `<span class="htree-label">${node.label}</span>`;
@@ -130,6 +131,16 @@ function buildNode(id) {
 
 function buildBadges(node) {
   let b = '';
+  // CPU P/E-core 구분
+  if (node.type === 'cpu_core') {
+    if (node.smt) {
+      b += `<span class="htree-badge" style="color:#22c55e">P</span>`;
+      if (node.threads) b += `<span class="htree-badge">CPU ${node.threads.join(',')}</span>`;
+    } else {
+      b += `<span class="htree-badge" style="color:#f59e0b">E</span>`;
+      if (node.threads) b += `<span class="htree-badge">CPU ${node.threads[0]}</span>`;
+    }
+  }
   if (node.link) b += `<span class="htree-badge">${node.link}</span>`;
   if (node.iommu_group >= 0) b += `<span class="htree-iommu">G${node.iommu_group}</span>`;
   if (node.sriov_totalvfs > 0) b += `<span class="htree-badge">VF:${node.sriov_numvfs || 0}/${node.sriov_totalvfs}</span>`;
