@@ -155,11 +155,22 @@ async def get_topology_graph():
 
     nodes.append({"data": node_data})
 
-  # Edge
+  # compound parent-child 관계 수집
+  parent_child_pairs = set()
+  for n in nodes:
+    parent = n["data"].get("parent")
+    if parent:
+      parent_child_pairs.add((parent, n["data"]["id"]))
+      parent_child_pairs.add((n["data"]["id"], parent))
+
+  # Edge — compound 관계의 internal edge만 제외, PCIe edge는 유지
   edges = []
   seen = set()
   for link in topo.links:
     if link.source not in visible_ids or link.target not in visible_ids:
+      continue
+    # compound parent-child + internal type일 때만 제외
+    if (link.source, link.target) in parent_child_pairs and link.type.value == "internal":
       continue
     key = f"{link.source}|{link.target}"
     if key in seen:
