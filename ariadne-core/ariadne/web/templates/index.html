@@ -348,7 +348,7 @@
     const LAYERS = { numa_node:0, socket:1, memory_controller:1, pcie_root_complex:2, pcie_root_port:3, gpu:4, npu:4, nic:4, nvme:4, pcie_endpoint:4 };
     const NODE_W = { default:120, pcie_root_port:24, memory_controller:100 };
     const NODE_H = { default:44, pcie_root_port:20, memory_controller:36 };
-    const LAYER_GAP = 100, NODE_GAP = 16;
+    const NODE_GAP = 16;
     const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
     const FILTER_MAP = { gpu:['gpu'], npu:['npu'], nvme:['nvme'], nic:['nic'], other:['pcie_endpoint','memory_controller','socket','pcie_root_complex','pcie_root_port'] };
 
@@ -377,7 +377,9 @@
       positions = {};
       const layers = {};
       data.nodes.forEach(n => { const l=LAYERS[n.type]??4; (layers[l]=layers[l]||[]).push(n); });
-      const startY = 60;
+      const numLayers = Math.max(...Object.keys(layers).map(Number)) + 1;
+      const LAYER_GAP = Math.max(80, Math.min(160, (H - 120) / numLayers));
+      const startY = 50;
       Object.keys(layers).sort((a,b)=>a-b).forEach(li => {
         const nodes=layers[li], y=startY+li*LAYER_GAP;
         if(parseInt(li)>=3) nodes.sort((a,b)=>{
@@ -404,13 +406,45 @@
       // Links
       const vis=data.links.filter(l=>positions[l.source]&&positions[l.target]);
       const linkG=g.append('g');
-      currentLinkEls=linkG.selectAll('path').data(vis).join('path')
+
+      // 투명한 굵은 히트 영역 (hover/click 용)
+      const linkHitAreas=linkG.selectAll('path.link-hit').data(vis).join('path')
+        .attr('class','link-hit')
+        .attr('d',d=>_elbow(d))
+        .attr('stroke','transparent')
+        .attr('stroke-width', 20)
+        .attr('fill','none')
+        .attr('cursor','pointer');
+
+      // 실제 보이는 edge
+      currentLinkEls=linkG.selectAll('path.link-line').data(vis).join('path')
         .attr('class','link-line')
         .attr('d',d=>_elbow(d))
-        .attr('stroke',d=>d.type==='pcie'?'#e94560':d.type==='memory'?'#3b82f6':d.type==='upi'?'#f0c040':'#555')
-        .attr('stroke-width',d=>d.type==='internal'?1.5:Math.max(2,Math.min(6,(d.bandwidth_gbps||0)/5+1)))
+        .attr('stroke',d=>_edgeColor(d))
+        .attr('stroke-width',d=>_edgeWidth(d))
         .attr('stroke-dasharray',d=>d.type==='internal'?'4,3':null)
-        .attr('stroke-opacity',d=>d.type==='internal'?0.3:0.6);
+        .attr('stroke-opacity',d=>d.type==='internal'?0.3:0.7)
+        .attr('pointer-events','none');  // 클릭은 히트 영역이 처리
+
+      // 히트 영역에 이벤트 바인딩
+      linkHitAreas
+        .on('mouseover',function(e,d){
+          d3.select(this.nextSibling).attr('stroke','#fff').attr('stroke-opacity',1).attr('stroke-width',6);
+          showEdgeTip(e,d);
+        })
+        .on('mouseout',function(e,d){
+          d3.select(this.nextSibling).attr('stroke',_edgeColor(d)).attr('stroke-opacity',d.type==='internal'?0.3:0.7).attr('stroke-width',_edgeWidth(d));
+          hideTip();
+          // Re-apply trace path
+          if(traceHistory.length){
+            const r=traceHistory[0].result;
+            if(r.path?.length>1){
+              const edges=new Set();
+              for(let j=0;j<r.path.length-1;j++){edges.add(`${r.path[j]}|${r.path[j+1]}`);edges.add(`${r.path[j+1]}|${r.path[j]}`);}
+              currentLinkEls.classed('trace-path',l=>edges.has(`${l.source}|${l.target}`)||edges.has(`${l.target}|${l.source}`));
+            }
+          }
+        });
 
       linkG.selectAll('text.link-bw').data(vis.filter(l=>l.bandwidth_gbps)).join('text')
         .attr('class','link-bw')
@@ -443,6 +477,21 @@
 
       svg.on('click',()=>{clearAll();hideCtx();});
       document.addEventListener('keydown',e=>{if(e.key==='Escape')clearAll();});
+    }
+
+    function _edgeColor(d){return d.type==='pcie'?'#e94560':d.type==='memory'?'#3b82f6':d.type==='upi'?'#f0c040':'#555';}
+    function _edgeWidth(d){return d.type==='internal'?1.5:Math.max(2,Math.min(6,(d.bandwidth_gbps||0)/5+1));}
+
+    function showEdgeTip(e,d){
+      const t=document.getElementById('tooltip');
+      let h=`<b>${d.type.toUpperCase()}</b>`;
+      if(d.bandwidth_gbps)h+=`<br>BW: ${d.bandwidth_gbps} GB/s`;
+      if(d.attrs?.speed)h+=`<br>Speed: ${d.attrs.speed}`;
+      if(d.attrs?.width)h+=`<br>Width: x${d.attrs.width}`;
+      const srcN=graphData.nodes.find(n=>n.id===d.source);
+      const dstN=graphData.nodes.find(n=>n.id===d.target);
+      if(srcN&&dstN)h+=`<br>${srcN.name} → ${dstN.name}`;
+      t.innerHTML=h;t.style.display='block';t.style.left=(e.pageX+14)+'px';t.style.top=(e.pageY-10)+'px';
     }
 
     function _elbow(d){
@@ -548,19 +597,19 @@
     }
 
     // === Edge highlight from breakdown hover ===
-    let tracePathData = null;
     function hlEdge(i) {
       if(!traceHistory.length)return;
       const r=traceHistory[0].result;
       if(!r.path||i>=r.path.length-1)return;
       const s=r.path[i],t=r.path[i+1];
       currentLinkEls.filter(l=>(l.source===s&&l.target===t)||(l.source===t&&l.target===s))
-        .attr('stroke','#fff').attr('stroke-width',8);
+        .attr('stroke','#fff').attr('stroke-opacity',1).attr('stroke-width',8);
     }
     function unhlEdge(i) {
-      currentLinkEls.attr('stroke',d=>d.type==='pcie'?'#e94560':d.type==='memory'?'#3b82f6':d.type==='upi'?'#f0c040':'#555')
-        .attr('stroke-width',d=>d.type==='internal'?1.5:Math.max(2,Math.min(6,(d.bandwidth_gbps||0)/5+1)));
-      // Re-apply trace path
+      currentLinkEls
+        .attr('stroke',d=>_edgeColor(d))
+        .attr('stroke-width',d=>_edgeWidth(d))
+        .attr('stroke-opacity',d=>d.type==='internal'?0.3:0.7);
       if(traceHistory.length){
         const r=traceHistory[0].result;
         if(r.path?.length>1){
