@@ -61,6 +61,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--color-bg); 
 .htree-node.src-sel { border-color:var(--color-source) !important; box-shadow:0 0 8px rgba(34,197,94,0.3); }
 .htree-node.dst-sel { border-color:var(--color-dest) !important; box-shadow:0 0 8px rgba(245,158,11,0.3); }
 .htree-node.on-path { border-color:var(--color-accent) !important; }
+.htree-node.info-sel { border-color:#fff !important; box-shadow:0 0 6px rgba(255,255,255,0.2); }
 .htree-node.search-hl { box-shadow:0 0 10px rgba(233,69,96,0.5); filter:brightness(1.4); }
 .htree-node.htree-dim { opacity:0.6; cursor:default; }
 .htree-node.htree-dim:hover { filter:none; }

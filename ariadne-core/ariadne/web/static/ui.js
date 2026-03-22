@@ -3,7 +3,15 @@
 // === 입력 방식 ===
 function clickNode(id) {
   const node = App.nodeMap[id];
-  if (!node || !TRACEABLE.has(node.type)) { showInfo(node); showTab('info'); return; }
+  if (!node) return;
+  // 이전 info 선택 해제
+  document.querySelectorAll('.htree-node.info-sel').forEach(el => el.classList.remove('info-sel'));
+  if (!TRACEABLE.has(node.type)) {
+    // non-traceable: 정보만 표시 + 선택 표시
+    hlNode(id, 'info-sel');
+    showInfo(node); showTab('info');
+    return;
+  }
   pickNode(id);
 }
 
@@ -191,7 +199,7 @@ function hlEdge(fromId, toId, cls) {
 }
 
 function clearHL() {
-  document.querySelectorAll('.htree-node').forEach(el => el.classList.remove(CSS.SRC_SEL, CSS.DST_SEL, CSS.ON_PATH));
+  document.querySelectorAll('.htree-node').forEach(el => el.classList.remove(CSS.SRC_SEL, CSS.DST_SEL, CSS.ON_PATH, 'info-sel'));
   document.querySelectorAll('.edge-line').forEach(el => el.classList.remove(CSS.TRACE_HL, CSS.SEG_HL));
 }
 
