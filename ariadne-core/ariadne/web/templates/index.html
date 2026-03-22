@@ -17,7 +17,20 @@
     #main { display:flex; height:calc(100vh - 40px); }
 
     /* Horizontal Tree */
-    #tree-panel { flex:1; overflow:auto; padding:20px; }
+    #tree-panel { flex:1; overflow:auto; padding:20px; position:relative; }
+    #tree-content { transform-origin:0 0; transition:transform 0.1s ease; }
+
+    #zoom-controls {
+      position:absolute; top:8px; right:8px; z-index:5;
+      display:flex; gap:4px;
+    }
+    .zoom-btn {
+      width:32px; height:28px; border:1px solid #444; border-radius:4px;
+      background:#1a1a2e; color:#ccc; font-size:14px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .zoom-btn:hover { background:#333; }
+    #zoom-level { font-size:10px; color:#888; padding:0 6px; line-height:28px; }
 
     .htree { display:flex; align-items:center; }
     .htree-node {
@@ -118,7 +131,15 @@
 <div id="sel-bar"><span id="sel-text"></span></div>
 
 <div id="main">
-  <div id="tree-panel"></div>
+  <div id="tree-panel">
+    <div id="zoom-controls">
+      <button class="zoom-btn" onclick="zoomIn()">+</button>
+      <button class="zoom-btn" onclick="zoomOut()">−</button>
+      <span id="zoom-level">100%</span>
+      <button class="zoom-btn" onclick="zoomFit()" style="font-size:10px;width:auto;padding:0 8px;">Fit</button>
+    </div>
+    <div id="tree-content"></div>
+  </div>
   <div id="sidebar">
     <div class="tabs">
       <div class="tab on" onclick="showTab('trace')">Trace</div>
@@ -172,7 +193,8 @@ function renderTree() {
   const roots = graph.nodes.filter(n => !hasParent.has(n.data.id)).map(n => n.data.id);
   let html = '';
   roots.forEach(r => { html += buildNode(r, nodeMap, childrenOf); });
-  document.getElementById('tree-panel').innerHTML = html;
+  document.getElementById('tree-content').innerHTML = html;
+  zoomFit();
 }
 
 function buildNode(id, nodeMap, childrenOf) {
@@ -385,6 +407,39 @@ function showTab(t){
   else if(t==='trace'&&hist.length)renderTrace(hist[0].r);
 }
 function setSB(h){document.getElementById('sb').innerHTML=h;}
+
+// Zoom
+let zoomScale = 1;
+function setZoom(s) {
+  zoomScale = Math.max(0.2, Math.min(2, s));
+  const el = document.getElementById('tree-content');
+  el.style.transform = `scale(${zoomScale})`;
+  document.getElementById('zoom-level').textContent = `${Math.round(zoomScale*100)}%`;
+}
+function zoomIn() { setZoom(zoomScale + 0.1); }
+function zoomOut() { setZoom(zoomScale - 0.1); }
+function zoomFit() {
+  const panel = document.getElementById('tree-panel');
+  const content = document.getElementById('tree-content');
+  if (!content.firstChild) return;
+  // 임시로 scale 1로 측정
+  content.style.transform = 'scale(1)';
+  const cw = content.scrollWidth;
+  const ch = content.scrollHeight;
+  const pw = panel.clientWidth - 40;
+  const ph = panel.clientHeight - 40;
+  const s = Math.min(pw / cw, ph / ch, 1);
+  setZoom(s);
+}
+
+// 마우스 휠 줌
+document.getElementById('tree-panel').addEventListener('wheel', function(e) {
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    setZoom(zoomScale + delta);
+  }
+}, {passive: false});
 
 init();
 </script>
