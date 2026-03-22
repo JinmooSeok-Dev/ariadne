@@ -8,20 +8,33 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 
 ## 목표
 
-- **보기** — CPU/NUMA/PCIe/IOMMU/NVLink을 하나의 통합 뷰로 시각화
-- **추적** — source → destination E2E 경로 + 구간별 BW/latency breakdown
-- **시뮬레이션** — 다중 데이터 흐름의 경합/큐잉/병목 예측 (DES 기반)
-- **비교** — BIOS/커널 설정 변경 전후 성능 비교 (What-if)
+### 핵심 가치
 
-### 지원 예정 기능
+- **보기 (See)** — 복잡한 시스템의 모든 구성요소를 계층 트리로 한눈에 파악
+- **추적 (Trace)** — 임의의 source → destination E2E 경로 + 구간별 BW/latency breakdown
+- **시뮬레이션 (Simulate)** — 다중 데이터 흐름의 경합/큐잉/병목 예측 (DES 기반)
+- **비교 (Compare)** — BIOS/커널 설정 변경 전후 성능 비교 (What-if)
 
-- **다양한 Transfer Mode**: DMA, RDMA (RoCEv2/InfiniBand), GPUDirect RDMA, GPUDirect Storage, PCIe P2P, NVLink P2P, UCIe (chiplet interconnect)
-- **PCIe Capability 분석**: ACS/ARI/ATS 상태에 따른 경로 변화 시각화, IOMMU 그룹 구성 예측
-- **시스템 설정 영향 분석**: `iommu=pt`, ASPM, hugepage, CPU governor, `pcie_acs_override`, `disable_acs_redir` 등 BIOS/커널 설정 변경의 BW/latency 영향 시뮬레이션
-- **VM/VFIO Overlay**: QEMU/libvirt/KubeVirt 설정 파싱 → vCPU pinning, VFIO 디바이스 매핑 시각화 + NUMA 불일치 감지
-- **SR-IOV 안전성 분석**: PF/VF IOMMU 그룹 구성, reset_method 위험도 사전 경고
-- **멀티 VM**: 여러 VM의 데이터 흐름을 색상 구분하여 공유 Link 경합 시각화
-- **Web UI**: React + D3.js 기반 인터랙티브 토폴로지 시각화 + 시뮬레이션 결과 대시보드
+### 지원 기능 (구현 완료 + 예정)
+
+| 기능 | 상태 |
+|------|:----:|
+| CPU/NUMA/Cache/Memory 토폴로지 수집 (sysfs/procfs 직접 파싱) | ✅ |
+| PCIe 트리 수집 (BDF, speed/width, BAR, IOMMU 그룹, SR-IOV) | ✅ |
+| 터미널 토폴로지 출력 (P/E-core 구분, summary 모드) | ✅ |
+| E2E 경로 추적 + BW/latency breakdown (CLI fuzzy 선택) | ✅ |
+| Web UI: 가로 트리 뷰 + SVG edge + 접기/줌 | ✅ |
+| Web UI: Trace 선택 (클릭/우클릭/검색) + sidebar breakdown | ✅ |
+| Web UI: 트리 ↔ sidebar 양방향 hover/클릭 연동 | ✅ |
+| JSON snapshot 저장/로드 (오프라인 분석, 팀 공유) | ✅ |
+| Transfer Mode (RDMA, GPUDirect, P2P, NVLink, UCIe) | 예정 |
+| PCIe Capability 분석 (ACS/ARI/ATS → 경로 변화) | 예정 |
+| BIOS/커널 설정 영향 시뮬레이션 (iommu, ASPM, hugepage 등) | 예정 |
+| VM/VFIO Overlay (QEMU/libvirt/KubeVirt 파싱) | 예정 |
+| SR-IOV 안전성 분석 (IOMMU 그룹, reset_method 경고) | 예정 |
+| 멀티 VM 시각화 (색상 구분, 공유 BW 경합) | 예정 |
+| 다중 흐름 경합 시뮬레이션 (DES) | 예정 |
+| Rebellions NPU 지원 (ATOM+ CA22, ATOM-MAX CA25, REBEL CA21) | ✅ |
 
 ## 요구사항
 
@@ -39,42 +52,40 @@ pip install -e ".[dev]"
 
 ## 사용법
 
+### 터미널
+
 ```bash
-# venv 활성화 (세션당 한 번)
 cd ariadne-core
 source .venv/bin/activate
 
-# 현재 시스템 토폴로지 보기 (CPU/NUMA + PCIe 트리 + IOMMU 그룹)
-ariadne show
+# 시스템 토폴로지 보기
+ariadne show                       # 전체 트리
+ariadne show --summary             # 타입별 요약
 
-# 상세 정보 포함 (sudo 권장)
+# 상세 정보 (sudo 권장)
 sudo $(which ariadne) show
 
-# E2E 경로 추적 — 인터랙티브 fuzzy 선택
-ariadne trace
+# E2E 경로 추적
+ariadne trace                      # 인터랙티브 fuzzy 선택
+ariadne trace gpu:0 memory         # GPU → Host Memory
+ariadne trace gpu:0 nvme:0         # GPU → NVMe
+ariadne trace gpu:0 nic:0          # GPU → NIC
+ariadne trace 0000:01:00.0 memory  # BDF 직접 지정
 
-# E2E 경로 추적 — 직접 지정
-ariadne trace gpu:0 memory       # GPU → Host Memory
-ariadne trace gpu:0 nvme:0       # GPU → NVMe (P2P 경로)
-ariadne trace gpu:0 nic:0        # GPU → NIC
-ariadne trace gpu:0 gpu:1        # GPU-to-GPU
-ariadne trace 0000:01:00.0 memory  # BDF 직접 지정도 가능
-
-# JSON snapshot 저장/로드 (오프라인 분석, 팀 공유용)
+# JSON snapshot
 sudo $(which ariadne) snapshot my-server.json
 ariadne load my-server.json
 ```
 
-> **sudo 권장**: 최대한 많은 정보를 수집하려면 sudo로 실행한다.
->
-> | 정보 | 일반 유저 | sudo |
-> |------|:--------:|:----:|
-> | CPU/NUMA 토폴로지 | ✅ | ✅ |
-> | Cache 계층 | ✅ | ✅ |
-> | 메모리 총 용량 | ✅ | ✅ |
-> | DIMM 상세 (DDR 타입, 속도, 채널 수, 이론 BW) | ❌ | ✅ |
-> | PCIe config space (속도, BAR, capability) | ❌ | ✅ |
-> | IOMMU 그룹 | ✅ | ✅ |
+### Web UI
+
+```bash
+ariadne serve                      # http://localhost:8000
+ariadne serve --port 9000          # 포트 지정
+sudo $(which ariadne) serve        # sudo로 상세 정보 포함
+```
+
+> **sudo 권장**: PCIe config space, DIMM 상세 등은 root 권한 필요. 기본 CPU/NUMA 정보는 일반 유저로 동작.
 
 ## 프로젝트 구성
 
@@ -85,14 +96,12 @@ ariadne/
 │   │   ├── collector/          ← sysfs/procfs 기반 토폴로지 수집
 │   │   ├── model/              ← NetworkX 기반 토폴로지 그래프 + Pydantic 타입
 │   │   ├── analyzer/           ← E2E 경로 추적 + BW/latency 분석
+│   │   ├── api/                ← FastAPI REST 서버
+│   │   ├── web/                ← Web UI (HTML/CSS/JS + SVG)
 │   │   ├── viz/                ← Rich 터미널 시각화
-│   │   └── cli/                ← Typer CLI (InquirerPy fuzzy 선택)
+│   │   └── cli/                ← Typer CLI
 │   └── tests/
 └── docs/                       ← 설계 문서
-    ├── REQUIREMENTS.md
-    ├── DESIGN.md
-    ├── DATA_MODEL.md
-    └── COMPARISON.md
 ```
 
 ## 구현 상태
@@ -102,24 +111,24 @@ ariadne/
 | 1 | CPU/NUMA 토폴로지 수집 + 터미널 출력 | ✅ |
 | 2 | PCIe 트리 + IOMMU 그룹 + JSON snapshot | ✅ |
 | 3 | E2E 경로 추적 + BW/latency breakdown | ✅ |
-| 4 | Web UI (FastAPI + React + D3.js) | |
+| 4 | Web UI | 진행 중 |
 | 5 | 다중 흐름 경합 시뮬레이션 (DES) | |
 | 6 | VM 오버레이 (QEMU/libvirt/KubeVirt) | |
 | 7 | BIOS/커널 설정 변경 What-if | |
-| 8 | NVLink, RDMA, GPUDirect 경로 | |
+| 8 | NVLink, RDMA, GPUDirect, UCIe 경로 | |
 | 9 | 멀티 VM 시각화 | |
 | 10 | Calibration, 테스트, 패키징 | |
 
 ## 기술 스택
 
-| 영역 | 현재 | 예정 |
-|------|------|------|
-| 토폴로지 수집 | sysfs/procfs 직접 파싱 | lspci, nvidia-smi, rdma/ibstat |
-| 그래프 모델 | NetworkX, Pydantic | |
-| 터미널 출력 | Rich, Typer, InquirerPy | |
-| 시뮬레이션 | | SimPy |
-| API 서버 | | FastAPI |
-| Web UI | | React + D3.js/Cytoscape.js |
+| 영역 | 사용 |
+|------|------|
+| 토폴로지 수집 | sysfs/procfs 직접 파싱 (hwloc 의존 없음) |
+| 그래프 모델 | NetworkX, Pydantic |
+| 터미널 출력 | Rich, Typer, InquirerPy |
+| API 서버 | FastAPI, Uvicorn |
+| Web UI | Vanilla JS, SVG edge, Jinja2 템플릿 |
+| 시뮬레이션 (예정) | SimPy |
 
 ## 문서
 

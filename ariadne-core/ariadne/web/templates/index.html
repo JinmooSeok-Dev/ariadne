@@ -605,8 +605,8 @@ function updSel() {
   if(!srcId) { bar.style.display='none'; return; }
   bar.style.display='block';
   const sn=nodeMap[srcId]?.label||srcId;
-  if(!dstId) txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">SRC: ${sn}</span> <span style="color:#666">→ click destination...</span>`;
-  else { const dn=nodeMap[dstId]?.label||dstId; txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">${sn}</span> <span style="color:#666">→</span> <span style="color:#f59e0b;font-weight:bold">${dn}</span>`; }
+  if(!dstId) txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">SRC: ${sn}</span> <span style="color:#ccc;font-size:16px;padding:0 6px">→</span> <span style="color:#aaa">click destination...</span>`;
+  else { const dn=nodeMap[dstId]?.label||dstId; txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">${sn}</span> <span style="color:#ccc;font-size:16px;padding:0 6px">→</span> <span style="color:#f59e0b;font-weight:bold">${dn}</span>`; }
 }
 
 // === Sidebar ===
