@@ -7,18 +7,20 @@ import networkx as nx
 from ariadne.model.types import (
   CacheLevel,
   Component,
+  ComponentPrefix as P,
   ComponentType,
   Link,
   LinkType,
+  PCIDevice,
   SystemTopology,
 )
-from ariadne.model.types import PCIDevice
 from ariadne.collector.numa import collect_numa_nodes
 from ariadne.collector.cpu import collect_cpu_cores, collect_caches
 from ariadne.collector.memory import collect_total_memory, collect_dimm_info
 from ariadne.collector.pcie import (
   collect_pci_devices,
   calc_pcie_bandwidth,
+  format_bar_size,
   get_pcie_gen,
   get_short_vendor_name,
 )
@@ -78,7 +80,7 @@ def _build_components_and_links(topo: SystemTopology) -> None:
   socket_ids = sorted({c.physical_package_id for c in topo.cpu_cores})
 
   for node in topo.numa_nodes:
-    node_id = f"numa_{node.node_id}"
+    node_id = f"{P.NUMA}{node.node_id}"
     components.append(Component(
       id=node_id,
       type=ComponentType.NUMA_NODE,
@@ -87,7 +89,7 @@ def _build_components_and_links(topo: SystemTopology) -> None:
     ))
 
   for sid in socket_ids:
-    sock_id = f"socket_{sid}"
+    sock_id = f"{P.SOCKET}{sid}"
     components.append(Component(
       id=sock_id,
       type=ComponentType.SOCKET,
@@ -97,13 +99,13 @@ def _build_components_and_links(topo: SystemTopology) -> None:
     node_for_socket = _find_numa_for_socket(topo, sid)
     if node_for_socket is not None:
       links.append(Link(
-        source=f"numa_{node_for_socket}",
+        source=f"{P.NUMA}{node_for_socket}",
         target=sock_id,
         type=LinkType.INTERNAL,
       ))
 
   for core in topo.cpu_cores:
-    core_id = f"core_{core.physical_package_id}_{core.core_id}"
+    core_id = f"{P.CORE}{core.physical_package_id}_{core.core_id}"
     components.append(Component(
       id=core_id,
       type=ComponentType.CPU_CORE,
@@ -115,14 +117,14 @@ def _build_components_and_links(topo: SystemTopology) -> None:
       },
     ))
     links.append(Link(
-      source=f"socket_{core.physical_package_id}",
+      source=f"{P.SOCKET}{core.physical_package_id}",
       target=core_id,
       type=LinkType.INTERNAL,
     ))
 
   l3_caches = [c for c in topo.caches if c.level == CacheLevel.L3]
   for i, cache in enumerate(l3_caches):
-    cache_id = f"l3_{i}"
+    cache_id = f"{P.L3}{i}"
     components.append(Component(
       id=cache_id,
       type=ComponentType.CACHE,
@@ -133,20 +135,20 @@ def _build_components_and_links(topo: SystemTopology) -> None:
     core_socket = _find_socket_for_cpus(topo, cache.shared_cpu_list)
     if core_socket is not None:
       links.append(Link(
-        source=f"socket_{core_socket}",
+        source=f"{P.SOCKET}{core_socket}",
         target=cache_id,
         type=LinkType.INTERNAL,
       ))
 
   for node in topo.numa_nodes:
-    mc_id = f"mc_{node.node_id}"
+    mc_id = f"{P.MC}{node.node_id}"
     components.append(Component(
       id=mc_id,
       type=ComponentType.MEMORY_CONTROLLER,
       name=f"Memory Controller {node.node_id}",
     ))
     links.append(Link(
-      source=f"numa_{node.node_id}",
+      source=f"{P.NUMA}{node.node_id}",
       target=mc_id,
       type=LinkType.INTERNAL,
     ))
@@ -157,7 +159,7 @@ def _build_components_and_links(topo: SystemTopology) -> None:
       if len(topo.numa_nodes) > 1 and bw > 0:
         bw = round(bw / len(topo.numa_nodes), 1)
 
-      dram_id = f"dram_{node.node_id}"
+      dram_id = f"{P.DRAM}{node.node_id}"
       speed_str = f"{mem.type} {mem.speed_mhz}MHz" if mem.speed_mhz else "Unknown"
       components.append(Component(
         id=dram_id,
@@ -176,8 +178,8 @@ def _build_components_and_links(topo: SystemTopology) -> None:
     for other_id, dist in node.distances.items():
       if other_id > node.node_id and dist > node.distances.get(node.node_id, 10):
         links.append(Link(
-          source=f"numa_{node.node_id}",
-          target=f"numa_{other_id}",
+          source=f"{P.NUMA}{node.node_id}",
+          target=f"{P.NUMA}{other_id}",
           type=LinkType.UPI,
           attrs={"distance": dist},
         ))
@@ -202,7 +204,7 @@ def _build_pcie_components(
   endpoints = [d for d in topo.pci_devices if d.type_name not in ("Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge", "SMBus Controller")]
 
   for hb in host_bridges:
-    rc_id = f"pcie_rc_{hb.bdf}"
+    rc_id = f"{P.PCIE_RC}{hb.bdf}"
     components.append(Component(
       id=rc_id,
       type=ComponentType.PCIE_ROOT_COMPLEX,
@@ -211,10 +213,10 @@ def _build_pcie_components(
     ))
     numa = _resolve_numa_node(topo, hb.numa_node)
     if numa is not None:
-      links.append(Link(source=f"numa_{numa}", target=rc_id, type=LinkType.INTERNAL))
+      links.append(Link(source=f"{P.NUMA}{numa}", target=rc_id, type=LinkType.INTERNAL))
 
   for br in bridges:
-    rp_id = f"pcie_rp_{br.bdf}"
+    rp_id = f"{P.PCIE_RP}{br.bdf}"
     components.append(Component(
       id=rp_id,
       type=ComponentType.PCIE_ROOT_PORT,
@@ -224,7 +226,7 @@ def _build_pcie_components(
     if br.parent_bdf:
       parent_comp = _find_pcie_component_id(br.parent_bdf, host_bridges, bridges)
     else:
-      parent_comp = f"pcie_rc_{host_bridges[0].bdf}" if host_bridges else None
+      parent_comp = f"{P.PCIE_RC}{host_bridges[0].bdf}" if host_bridges else None
     if parent_comp:
       links.append(Link(source=parent_comp, target=rp_id, type=LinkType.INTERNAL))
 
@@ -240,7 +242,7 @@ def _build_pcie_components(
     name_parts = [ep.vendor_name, ep.type_name]
     name = " ".join(p for p in name_parts if p)
 
-    ep_id = f"pcie_{ep.bdf}"
+    ep_id = f"{P.PCIE}{ep.bdf}"
     attrs: dict = {
       "bdf": ep.bdf,
       "vendor": ep.vendor,
@@ -273,7 +275,7 @@ def _build_pcie_components(
     if ep.parent_bdf:
       parent_id = _find_pcie_component_id(ep.parent_bdf, host_bridges, bridges)
     if not parent_id and host_bridges:
-      parent_id = f"pcie_rc_{host_bridges[0].bdf}"
+      parent_id = f"{P.PCIE_RC}{host_bridges[0].bdf}"
 
     if parent_id:
       links.append(Link(
@@ -288,10 +290,10 @@ def _build_pcie_components(
 def _find_pcie_component_id(bdf: str, host_bridges: list, bridges: list) -> str | None:
   for hb in host_bridges:
     if hb.bdf == bdf:
-      return f"pcie_rc_{hb.bdf}"
+      return f"{P.PCIE_RC}{hb.bdf}"
   for br in bridges:
     if br.bdf == bdf:
-      return f"pcie_rp_{br.bdf}"
+      return f"{P.PCIE_RP}{br.bdf}"
   return None
 
 
@@ -308,13 +310,9 @@ def _summarize_bars(bars: list[dict]) -> str:
     return ""
   parts = []
   for bar in bars:
-    size = bar["size"]
-    if size >= 1 << 30:
-      parts.append(f"BAR{bar['index']}: {size >> 30}GB")
-    elif size >= 1 << 20:
-      parts.append(f"BAR{bar['index']}: {size >> 20}MB")
-    elif size >= 1 << 10:
-      parts.append(f"BAR{bar['index']}: {size >> 10}KB")
+    formatted = format_bar_size(bar["size"])
+    if formatted:
+      parts.append(f"BAR{bar['index']}: {formatted}")
   return ", ".join(parts)
 
 

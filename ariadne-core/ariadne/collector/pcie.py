@@ -113,6 +113,17 @@ def classify_device(class_code: int, vendor: int = 0) -> ComponentType:
   return ComponentType.PCIE_ENDPOINT
 
 
+def format_bar_size(size: int) -> str:
+  """BAR 크기를 사람이 읽을 수 있는 형식으로 변환."""
+  if size >= 1 << 30:
+    return f"{size >> 30}GB"
+  if size >= 1 << 20:
+    return f"{size >> 20}MB"
+  if size >= 1 << 10:
+    return f"{size >> 10}KB"
+  return f"{size}B" if size > 0 else ""
+
+
 def get_device_type_name(class_code: int, vendor: int = 0, device_id: int = 0) -> str:
   """PCI class code에서 사람이 읽을 수 있는 이름. NPU는 제품명 포함."""
   if vendor == 0x1eff:

@@ -4,6 +4,19 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class ComponentPrefix:
+  """Component ID 생성에 사용하는 prefix. 모든 ID 생성은 이 상수를 사용한다."""
+  NUMA = "numa_"
+  SOCKET = "socket_"
+  CORE = "core_"
+  L3 = "l3_"
+  MC = "mc_"
+  DRAM = "dram_"
+  PCIE_RC = "pcie_rc_"
+  PCIE_RP = "pcie_rp_"
+  PCIE = "pcie_"
+
+
 class ComponentType(str, Enum):
   NUMA_NODE = "numa_node"
   SOCKET = "socket"

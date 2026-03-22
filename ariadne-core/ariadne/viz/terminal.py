@@ -161,7 +161,7 @@ def _render_pcie_tree(topo: SystemTopology, parent_tree, numa_id: int) -> None:
 
 def _render_endpoint(parent_tree, ep) -> None:
   """단일 PCIe endpoint를 트리에 추가."""
-  from ariadne.collector.pcie import calc_pcie_bandwidth, get_pcie_gen
+  from ariadne.collector.pcie import calc_pcie_bandwidth, format_bar_size, get_pcie_gen
 
   color = TYPE_COLORS.get(ep.type_name, "cyan" if ep.type_name.startswith("NPU") else "white")
   bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
@@ -184,13 +184,7 @@ def _render_endpoint(parent_tree, ep) -> None:
       ep_tree.add(f"[dim]{cur_str}{bw_str}[/]")
 
   if ep.bars:
-    bar_parts = []
-    for bar in ep.bars:
-      size = bar["size"]
-      if size >= 1 << 30:
-        bar_parts.append(f"BAR{bar['index']}: {size >> 30}GB")
-      elif size >= 1 << 20:
-        bar_parts.append(f"BAR{bar['index']}: {size >> 20}MB")
+    bar_parts = [f"BAR{b['index']}: {format_bar_size(b['size'])}" for b in ep.bars if format_bar_size(b["size"])]
     if bar_parts:
       ep_tree.add(f"[dim]{', '.join(bar_parts)}[/]")
 

@@ -2,7 +2,7 @@
 
 import networkx as nx
 
-from ariadne.model.types import SystemTopology, ComponentType, LinkType
+from ariadne.model.types import SystemTopology, ComponentType, ComponentPrefix as P, LinkType
 from ariadne.model.topology import to_networkx
 from ariadne.collector.pcie import calc_pcie_bandwidth
 
@@ -154,17 +154,17 @@ def _check_same_numa(topo: SystemTopology, src: str, dst: str) -> bool:
 
 def _find_numa_for_component(topo: SystemTopology, comp_id: str) -> int | None:
   for dev in topo.pci_devices:
-    if f"pcie_{dev.bdf}" == comp_id:
+    if f"{P.PCIE}{dev.bdf}" == comp_id:
       if dev.numa_node >= 0:
         return dev.numa_node
       if topo.numa_nodes:
         return topo.numa_nodes[0].node_id
-  if comp_id.startswith("numa_"):
+  if comp_id.startswith(P.NUMA):
     try:
       return int(comp_id.split("_")[1])
     except (IndexError, ValueError):
       pass
-  if comp_id.startswith("mc_") or comp_id.startswith("dram_"):
+  if comp_id.startswith(P.MC) or comp_id.startswith(P.DRAM):
     try:
       return int(comp_id.split("_")[1])
     except (IndexError, ValueError):
