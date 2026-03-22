@@ -63,6 +63,9 @@ async def get_topology_graph():
   for link in topo.links:
     if link.source not in visible_ids or link.target not in visible_ids:
       continue
+    # NUMA→NUMA (UPI) 링크는 트리에서 제외 (peer 관계, 부모-자식 아님)
+    if link.type.value == "upi":
+      continue
     key = f"{link.source}|{link.target}"
     if key in seen:
       continue
