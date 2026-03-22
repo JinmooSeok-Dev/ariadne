@@ -2,585 +2,353 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ariadne — System Topology</title>
-  <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
-  <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
-  <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+  <title>Ariadne</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f1a; color: #eee; overflow: hidden; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',system-ui,sans-serif; background:#0f0f1a; color:#eee; overflow:hidden; }
 
-    #header {
-      height: 44px; padding: 0 16px; background: #1a1a2e; border-bottom: 1px solid #333;
-      display: flex; align-items: center; gap: 12px;
-    }
-    #header h1 { font-size: 16px; color: #e94560; }
-    .host-info { color: #666; font-size: 12px; }
-    #header .spacer { flex: 1; }
-    .hdr-btn {
-      padding: 5px 14px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; font-weight: bold;
-    }
-    .btn-reload { background: #333; color: #ccc; }
-    .btn-trace { background: #e94560; color: white; }
-    .btn-trace:hover { background: #c73e54; }
-    .btn-clear { background: #333; color: #f59e0b; display: none; }
+    #header { height:40px; padding:0 16px; background:#1a1a2e; border-bottom:1px solid #333; display:flex; align-items:center; gap:12px; }
+    #header h1 { font-size:15px; color:#e94560; }
+    .info { color:#666; font-size:11px; }
+    .spacer { flex:1; }
+    .btn { padding:4px 12px; border-radius:4px; font-size:11px; cursor:pointer; border:none; font-weight:bold; }
+    .btn-gray { background:#333; color:#ccc; }
 
-    #main { display: flex; height: calc(100vh - 44px); }
-    #cy-container { flex: 1; background: #0f0f1a; }
+    #main { display:flex; height:calc(100vh - 40px); }
 
-    /* Selection indicator */
-    #sel-indicator {
-      position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
-      background: rgba(26,26,46,0.95); padding: 8px 20px; border-radius: 8px;
-      font-size: 13px; z-index: 10; display: flex; align-items: center; gap: 12px;
+    /* Horizontal Tree */
+    #tree-panel { flex:1; overflow:auto; padding:20px; }
+
+    .htree { display:flex; align-items:center; }
+    .htree-node {
+      display:flex; align-items:center; gap:4px;
+      padding:5px 10px; border-radius:5px; cursor:pointer;
+      white-space:nowrap; font-size:11px;
+      border:1.5px solid transparent;
+      flex-shrink:0;
     }
-    .sel-src { color: #22c55e; font-weight: bold; }
-    .sel-dst { color: #f59e0b; font-weight: bold; }
-    .sel-arrow { color: #666; }
+    .htree-node:hover { filter:brightness(1.3); }
+    .htree-node.src-sel { border-color:#22c55e !important; }
+    .htree-node.dst-sel { border-color:#f59e0b !important; }
+    .htree-node.on-path { border-color:#e94560 !important; }
+
+    .htree-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
+    .htree-label { font-weight:500; }
+    .htree-badge { font-size:8px; color:#888; background:rgba(255,255,255,0.05); padding:0 4px; border-radius:3px; }
+    .htree-bw { font-size:8px; color:#06b6d4; }
+    .htree-iommu { font-size:8px; color:#f0c040; }
+
+    /* Parent → children 연결 */
+    .htree-connector { width:30px; border-top:2px solid #666; flex-shrink:0; }
+    .htree-connector.pcie { border-color:#e94560; }
+    .htree-connector.internal { border-color:#666; border-top-style:dashed; }
+
+    /* Children 컨테이너: 왼쪽 세로선 */
+    .htree-children {
+      display:flex; flex-direction:column;
+      border-left:2px solid #666;
+      padding:2px 0;
+    }
+
+    /* 각 child → 가로선 + 재귀 */
+    .htree-child {
+      display:flex; align-items:center;
+    }
+    .htree-hline {
+      width:24px; border-top:2px solid #666; flex-shrink:0;
+      position:relative;
+    }
+    .htree-hline.pcie { border-color:#e94560; }
+    .htree-hline.internal { border-color:#666; border-top-style:dashed; }
+    .htree-bw-label {
+      font-size:7px; color:#06b6d4; position:absolute;
+      top:-11px; left:0; white-space:nowrap;
+    }
 
     /* Sidebar */
-    #sidebar {
-      width: 400px; background: #1a1a2e; border-left: 1px solid #333;
-      display: flex; flex-direction: column; overflow: hidden;
-    }
-    .sb-tabs { display: flex; border-bottom: 1px solid #333; }
-    .sb-tab {
-      flex: 1; padding: 9px; text-align: center; font-size: 11px; cursor: pointer;
-      color: #666; border-bottom: 2px solid transparent; font-weight: bold;
-    }
-    .sb-tab.active { color: #e94560; border-bottom-color: #e94560; }
-    .sb-tab:hover { color: #aaa; }
-    #sb-content { flex: 1; overflow-y: auto; padding: 14px; }
+    #sidebar { width:380px; background:#1a1a2e; border-left:1px solid #333; display:flex; flex-direction:column; }
+    .tabs { display:flex; border-bottom:1px solid #333; }
+    .tab { flex:1; padding:8px; text-align:center; font-size:11px; cursor:pointer; color:#666; border-bottom:2px solid transparent; font-weight:bold; }
+    .tab.on { color:#e94560; border-bottom-color:#e94560; }
+    #sb { flex:1; overflow-y:auto; padding:12px; }
 
-    .sb-section { margin-bottom: 16px; }
-    .sb-title {
-      font-size: 12px; color: #e94560; font-weight: bold; margin-bottom: 8px;
-      border-bottom: 1px solid #282840; padding-bottom: 4px;
-    }
-    .sb-field { margin-bottom: 5px; }
-    .sb-label { font-size: 10px; color: #666; }
-    .sb-val { font-size: 12px; color: #ddd; }
+    .section { margin-bottom:14px; }
+    .stitle { font-size:11px; color:#e94560; font-weight:bold; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:3px; }
+    .field { margin-bottom:3px; }
+    .flabel { font-size:9px; color:#666; }
+    .fval { font-size:11px; color:#ddd; }
 
-    .summary-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-    .sum-card {
-      flex: 1; min-width: 80px; background: #0f0f1a; border: 1px solid #282840;
-      border-radius: 6px; padding: 8px; text-align: center;
-    }
-    .sum-label { font-size: 9px; color: #666; text-transform: uppercase; }
-    .sum-value { font-size: 18px; font-weight: bold; color: #06b6d4; }
-    .sum-value.alert { color: #e94560; font-size: 11px; }
+    .cards { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+    .card { flex:1; min-width:70px; background:#0f0f1a; border:1px solid #222; border-radius:5px; padding:6px; text-align:center; }
+    .card-l { font-size:8px; color:#666; text-transform:uppercase; }
+    .card-v { font-size:16px; font-weight:bold; color:#06b6d4; }
 
-    .path-node {
-      font-size: 11px; padding: 5px 10px; background: #0f0f1a;
-      border-left: 3px solid #444; border-radius: 0 4px 4px 0; margin: 2px 0;
-    }
-    .path-node.src { border-left-color: #22c55e; }
-    .path-node.dst { border-left-color: #f59e0b; }
-    .path-node.bn { border-left-color: #e94560; }
-    .path-link {
-      font-size: 10px; color: #888; padding: 2px 0 2px 16px;
-      border-left: 1px dashed #333; margin-left: 5px;
-    }
-    .path-link .bar { display: inline-block; height: 6px; background: #22c55e; border-radius: 2px; vertical-align: middle; }
-    .path-link .bar-bg { display: inline-block; height: 6px; background: #282840; border-radius: 2px; vertical-align: middle; }
+    .pnode { font-size:10px; padding:4px 8px; background:#0f0f1a; border-left:3px solid #444; border-radius:0 3px 3px 0; margin:1px 0; }
+    .pnode.src { border-left-color:#22c55e; }
+    .pnode.dst { border-left-color:#f59e0b; }
+    .plink { font-size:9px; color:#777; padding:1px 0 1px 14px; border-left:1px dashed #333; margin-left:4px; }
 
-    .bd-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .bd-table th { color: #666; font-size: 9px; text-transform: uppercase; padding: 5px 6px; text-align: left; border-bottom: 1px solid #333; }
-    .bd-table td { padding: 5px 6px; border-bottom: 1px solid #1f1f35; }
-    .bd-table tr.hl { background: rgba(233,69,96,0.1); }
-    .bd-table tr.bn td:first-child { color: #e94560; font-weight: bold; }
+    .tbl { width:100%; border-collapse:collapse; font-size:10px; }
+    .tbl th { color:#666; font-size:8px; text-transform:uppercase; padding:3px 4px; text-align:left; border-bottom:1px solid #333; }
+    .tbl td { padding:3px 4px; border-bottom:1px solid #1a1a2e; }
+    .tbl tr:hover { background:rgba(233,69,96,0.08); }
+    .tbl tr.hl { background:rgba(255,255,255,0.06); }
 
-    .hist-item {
-      padding: 8px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
-      margin: 3px 0; display: flex; justify-content: space-between;
-      border-left: 3px solid #333; background: #0f0f1a;
-    }
-    .hist-item:hover { background: #1f1f35; border-left-color: #e94560; }
-    .hist-bw { color: #06b6d4; white-space: nowrap; }
+    .hist { padding:6px 8px; border-radius:3px; font-size:10px; cursor:pointer; margin:2px 0; display:flex; justify-content:space-between; background:#0f0f1a; border-left:3px solid #333; }
+    .hist:hover { border-left-color:#e94560; background:#1a1a2e; }
 
-    #ctx-menu {
-      position: absolute; background: #1a1a2e; border: 1px solid #444; border-radius: 6px;
-      padding: 4px 0; display: none; z-index: 50; min-width: 200px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-    }
-    .ctx-item { padding: 8px 16px; font-size: 12px; cursor: pointer; }
-    .ctx-item:hover { background: rgba(233,69,96,0.15); }
-    .ctx-sep { border-top: 1px solid #333; margin: 2px 0; }
-
-    .empty-msg { color: #555; font-size: 12px; padding: 30px; text-align: center; line-height: 1.8; }
+    #sel-bar { position:fixed; top:48px; left:50%; transform:translateX(-50%); background:rgba(20,20,40,0.95); padding:6px 14px; border-radius:6px; font-size:12px; z-index:5; display:none; }
+    .empty { color:#555; font-size:11px; padding:20px; text-align:center; line-height:1.8; }
   </style>
 </head>
 <body>
-  <div id="header">
-    <h1>Ariadne</h1>
-    <span class="host-info" id="host-info"></span>
-    <div class="spacer"></div>
-    <button class="hdr-btn btn-clear" id="btn-clear" onclick="clearAll()">✕ Clear</button>
-    <button class="hdr-btn btn-trace" onclick="promptTrace()">Trace</button>
-    <button class="hdr-btn btn-reload" onclick="reload()">Reload</button>
-  </div>
+<div id="header">
+  <h1>Ariadne</h1>
+  <span class="info" id="hinfo"></span>
+  <div class="spacer"></div>
+  <button class="btn btn-gray" id="bclear" style="display:none" onclick="clearSel()">Clear (ESC)</button>
+  <button class="btn btn-gray" onclick="location.reload()">Reload</button>
+</div>
+<div id="sel-bar"><span id="sel-text"></span></div>
 
-  <div id="sel-indicator" style="display:none">
-    <span id="sel-text"></span>
-  </div>
-
-  <div id="main">
-    <div id="cy-container"></div>
-    <div id="sidebar">
-      <div class="sb-tabs">
-        <div class="sb-tab active" onclick="tabSwitch('trace')">Trace</div>
-        <div class="sb-tab" onclick="tabSwitch('info')">Info</div>
-        <div class="sb-tab" onclick="tabSwitch('history')">History</div>
-      </div>
-      <div id="sb-content">
-        <div class="empty-msg">
-          Click a device to select as <span style="color:#22c55e">Source</span><br>
-          then click another as <span style="color:#f59e0b">Destination</span><br><br>
-          Or right-click a device for options<br>
-          <span style="color:#666">Traceable: GPU, NPU, NVMe, NIC, Memory</span>
-        </div>
+<div id="main">
+  <div id="tree-panel"></div>
+  <div id="sidebar">
+    <div class="tabs">
+      <div class="tab on" onclick="showTab('trace')">Trace</div>
+      <div class="tab" onclick="showTab('info')">Info</div>
+      <div class="tab" onclick="showTab('history')">History</div>
+    </div>
+    <div id="sb">
+      <div class="empty">
+        Click a device to set as <span style="color:#22c55e">Source</span><br>
+        then click another as <span style="color:#f59e0b">Destination</span><br><br>
+        <span style="color:#444">ESC to clear</span>
       </div>
     </div>
   </div>
-
-  <div id="ctx-menu">
-    <div class="ctx-item" id="ctx-src" onclick="ctxAction('src')">🟢 Set as Source</div>
-    <div class="ctx-item" id="ctx-dst" onclick="ctxAction('dst')">🟡 Set as Destination</div>
-    <div class="ctx-sep"></div>
-    <div class="ctx-item" onclick="ctxAction('mem')">📦 Trace to Memory</div>
-    <div class="ctx-sep"></div>
-    <div class="ctx-item" onclick="ctxAction('info')">ℹ️ Device Info</div>
-  </div>
+</div>
 
 <script>
+const COLORS = {
+  numa_node:'#f0c040', socket:'#4ecdc4', memory_controller:'#3b82f6',
+  pcie_root_complex:'#e94560', pcie_root_port:'#7c3aed',
+  gpu:'#22c55e', npu:'#06b6d4', nic:'#a855f7', nvme:'#f59e0b', pcie_endpoint:'#6b7280',
+};
 const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
 
-const TYPE_COLORS = {
-  numa_node: '#f0c040', socket: '#4ecdc4', memory_controller: '#3b82f6',
-  pcie_root_complex: '#e94560', pcie_root_port: '#7c3aed',
-  gpu: '#22c55e', npu: '#06b6d4', nic: '#a855f7', nvme: '#f59e0b', pcie_endpoint: '#6b7280',
-};
-const TYPE_SHAPES = {
-  numa_node: 'roundrectangle', socket: 'roundrectangle', memory_controller: 'rectangle',
-  pcie_root_complex: 'diamond', pcie_root_port: 'ellipse',
-  gpu: 'roundrectangle', npu: 'roundrectangle', nic: 'roundrectangle',
-  nvme: 'roundrectangle', pcie_endpoint: 'roundrectangle',
-};
-const EDGE_COLORS = { pcie: '#e94560', memory: '#3b82f6', upi: '#f0c040', internal: '#555' };
-
-let cy = null;
-let srcNode = null, dstNode = null;
-let traceHistory = [];
-let ctxTarget = null;
-let currentTab = 'trace';
+let graph=null, topo=null;
+let srcId=null, dstId=null, hist=[];
 
 async function init() {
-  const [graphResp, topoResp] = await Promise.all([
-    fetch('/api/topology/graph'), fetch('/api/topology')
+  [graph, topo] = await Promise.all([
+    fetch('/api/topology/graph').then(r=>r.json()),
+    fetch('/api/topology').then(r=>r.json()),
   ]);
-  const graph = await graphResp.json();
-  const topo = await topoResp.json();
-
-  document.getElementById('host-info').textContent =
+  document.getElementById('hinfo').textContent =
     `${topo.hostname} · ${topo.numa_nodes.length} NUMA · ${topo.cpu_cores.length} cores · ${topo.pci_devices.length} PCI`;
-
-  const elements = [...graph.nodes, ...graph.edges];
-
-  cy = cytoscape({
-    container: document.getElementById('cy-container'),
-    elements: elements,
-    style: [
-      // Compound: NUMA
-      { selector: 'node[type="numa_node"]', style: {
-        'background-color': '#f0c04008', 'border-color': '#f0c040', 'border-width': 2,
-        'border-style': 'dashed', 'shape': 'roundrectangle',
-        'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
-        'font-size': 14, 'color': '#f0c040', 'font-weight': 'bold',
-        'padding': 30, 'text-margin-y': -8,
-      }},
-      // Compound: Root Complex
-      { selector: 'node[type="pcie_root_complex"]', style: {
-        'background-color': '#e9456010', 'border-color': '#e94560', 'border-width': 2,
-        'border-style': 'solid', 'shape': 'roundrectangle',
-        'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
-        'font-size': 12, 'color': '#e94560', 'font-weight': 'bold',
-        'padding': 20, 'text-margin-y': -6,
-      }},
-      // Compound: Root Port
-      { selector: 'node[type="pcie_root_port"]', style: {
-        'background-color': '#7c3aed08', 'border-color': '#7c3aed', 'border-width': 1.5,
-        'border-style': 'dotted', 'shape': 'roundrectangle',
-        'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
-        'font-size': 9, 'color': '#7c3aed',
-        'padding': 14, 'text-margin-y': -4,
-      }},
-      // Leaf nodes (endpoints + infra)
-      { selector: 'node[type!="numa_node"][type!="pcie_root_complex"][type!="pcie_root_port"]', style: {
-        'label': 'data(label)',
-        'text-valign': 'center', 'text-halign': 'center',
-        'font-size': 9, 'color': '#eee', 'text-wrap': 'wrap', 'text-max-width': 100,
-        'width': 110, 'height': 36,
-        'background-color': function(ele) { return TYPE_COLORS[ele.data('type')] || '#666'; },
-        'shape': 'roundrectangle',
-        'border-width': 1.5,
-        'border-color': function(ele) { return TYPE_COLORS[ele.data('type')] || '#666'; },
-      }},
-      // Edges
-      { selector: 'edge', style: {
-        'width': function(ele) {
-          const bw = ele.data('bandwidth_gbps');
-          if (!bw) return 2;
-          return Math.max(2, Math.min(8, bw / 4 + 1));
-        },
-        'line-color': function(ele) { return EDGE_COLORS[ele.data('type')] || '#555'; },
-        'target-arrow-color': function(ele) { return EDGE_COLORS[ele.data('type')] || '#555'; },
-        'target-arrow-shape': 'triangle',
-        'arrow-scale': 0.8,
-        'curve-style': 'taxi',
-        'taxi-direction': 'downward',
-        'taxi-turn': 20,
-        'label': 'data(label)',
-        'font-size': 9, 'color': '#888',
-        'text-rotation': 'autorotate',
-        'text-margin-y': -8,
-        'opacity': function(ele) { return ele.data('type') === 'internal' ? 0.4 : 0.8; },
-        'line-style': function(ele) { return ele.data('type') === 'internal' ? 'dashed' : 'solid'; },
-      }},
-      // Edge hover
-      { selector: 'edge:hover', style: {
-        'width': 6, 'opacity': 1,
-        'line-color': '#fff', 'target-arrow-color': '#fff',
-      }},
-      // Selection styles
-      { selector: 'node.source', style: {
-        'border-color': '#22c55e', 'border-width': 4,
-      }},
-      { selector: 'node.destination', style: {
-        'border-color': '#f59e0b', 'border-width': 4,
-      }},
-      { selector: 'node.on-path', style: {
-        'border-color': '#e94560', 'border-width': 3,
-      }},
-      { selector: 'edge.trace-path', style: {
-        'line-color': '#e94560', 'target-arrow-color': '#e94560',
-        'width': 5, 'opacity': 1, 'z-index': 999,
-      }},
-      // Highlighted edge from breakdown hover
-      { selector: 'edge.edge-hl', style: {
-        'line-color': '#ffffff', 'target-arrow-color': '#ffffff',
-        'width': 8, 'opacity': 1, 'z-index': 9999,
-      }},
-    ],
-    layout: {
-      name: 'dagre',
-      rankDir: 'LR',
-      spacingFactor: 1.0,
-      nodeSep: 8,
-      rankSep: 40,
-      padding: 30,
-      fit: true,
-    },
-    minZoom: 0.15, maxZoom: 3,
-    wheelSensitivity: 0.3,
-  });
-
-  // Mark non-traceable nodes
-  cy.nodes().forEach(n => {
-    if (!TRACEABLE.has(n.data('type'))) n.addClass('not-traceable');
-  });
-
-  // Events
-  cy.on('tap', 'node', function(evt) {
-    const node = evt.target;
-    if (node.data('type') === 'numa_node') return;
-    if (TRACEABLE.has(node.data('type'))) {
-      selectNode(node);
-    } else {
-      showInfo(node);
-      tabSwitch('info');
-    }
-  });
-
-  cy.on('tap', function(evt) {
-    if (evt.target === cy) clearAll();
-  });
-
-  cy.on('cxttap', 'node', function(evt) {
-    const node = evt.target;
-    if (!TRACEABLE.has(node.data('type'))) return;
-    ctxTarget = node;
-    const pos = evt.renderedPosition;
-    const menu = document.getElementById('ctx-menu');
-    menu.style.display = 'block';
-    menu.style.left = pos.x + 'px';
-    menu.style.top = (pos.y + 44) + 'px';
-  });
-
-  cy.on('tap', function() {
-    document.getElementById('ctx-menu').style.display = 'none';
-  });
-
-  cy.on('mouseover', 'edge', function(evt) {
-    const edge = evt.target;
-    showEdgeInfo(edge);
-  });
-
-  cy.on('tap', 'edge', function(evt) {
-    showEdgeInfo(evt.target);
-    tabSwitch('info');
-  });
-
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') clearAll(); });
+  renderTree();
+  document.addEventListener('keydown', e => { if(e.key==='Escape') clearSel(); });
 }
 
-function selectNode(node) {
-  if (!srcNode) {
-    srcNode = node;
-    cy.nodes().removeClass('source destination on-path');
-    cy.edges().removeClass('trace-path');
-    node.addClass('source');
-    updateSelIndicator();
-    showInfo(node);
-    tabSwitch('info');
-  } else if (!dstNode && node.id() !== srcNode.id()) {
-    dstNode = node;
-    node.addClass('destination');
-    updateSelIndicator();
-    doTrace(srcNode.id(), dstNode.id());
-  }
+function renderTree() {
+  const nodeMap = {};
+  graph.nodes.forEach(n => nodeMap[n.data.id] = n.data);
+
+  const childrenOf = {};
+  const hasParent = new Set();
+  graph.edges.forEach(e => {
+    if (!childrenOf[e.data.source]) childrenOf[e.data.source] = [];
+    childrenOf[e.data.source].push(e.data);
+    hasParent.add(e.data.target);
+  });
+
+  const roots = graph.nodes.filter(n => !hasParent.has(n.data.id)).map(n => n.data.id);
+  let html = '';
+  roots.forEach(r => { html += buildNode(r, nodeMap, childrenOf); });
+  document.getElementById('tree-panel').innerHTML = html;
 }
 
-async function doTrace(srcId, dstId) {
-  const resp = await fetch(`/api/trace?source=${srcId}&destination=${dstId}`);
-  const result = await resp.json();
+function buildNode(id, nodeMap, childrenOf) {
+  const node = nodeMap[id];
+  if (!node) return '';
+  const kids = childrenOf[id] || [];
+  const color = COLORS[node.type] || '#666';
+  const nid = id.replace(/[:.]/g, '_');
 
-  // Path highlight — source/destination 클래스 유지
-  cy.edges().removeClass('trace-path');
-  cy.nodes().removeClass('on-path');
-  // source/destination 클래스 재적용 (덮어씌워짐 방지)
-  if (srcNode) srcNode.addClass('source');
-  if (dstNode) dstNode.addClass('destination');
-  if (result.path?.length > 1) {
-    const pathSet = new Set(result.path);
-    cy.nodes().forEach(n => {
-      if (pathSet.has(n.id()) && n.id() !== srcId && n.id() !== dstId) n.addClass('on-path');
+  let badges = '';
+  if (node.link) badges += `<span class="htree-badge">${node.link}</span>`;
+  if (node.iommu_group >= 0) badges += `<span class="htree-iommu">G${node.iommu_group}</span>`;
+  if (node.sriov_totalvfs > 0) badges += `<span class="htree-badge">VF:${node.sriov_numvfs||0}/${node.sriov_totalvfs}</span>`;
+  if (node.memory_mb) badges += `<span class="htree-badge">${Math.round(node.memory_mb/1024)}GB</span>`;
+  if (node.cpu_count) badges += `<span class="htree-badge">${node.cpu_count}CPU</span>`;
+
+  let h = `<div class="htree">`;
+
+  // 노드 박스
+  h += `<div class="htree-node" id="n_${nid}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')">`;
+  h += `<span class="htree-dot" style="background:${color}"></span>`;
+  h += `<span class="htree-label">${node.label}</span>`;
+  h += badges;
+  h += `</div>`;
+
+  // 자식이 있으면: 커넥터 + 세로선 + 각 child
+  if (kids.length > 0) {
+    // Parent → 세로선 연결 가로선
+    h += `<div class="htree-connector"></div>`;
+    // 세로선 + children
+    h += `<div class="htree-children">`;
+    kids.forEach(edge => {
+      const lineClass = edge.type === 'internal' ? 'internal' : 'pcie';
+      h += `<div class="htree-child">`;
+      h += `<div class="htree-hline ${lineClass}">`;
+      if (edge.bandwidth_gbps) {
+        h += `<span class="htree-bw-label">${edge.bandwidth_gbps}</span>`;
+      }
+      h += `</div>`;
+      h += buildNode(edge.target, nodeMap, childrenOf);
+      h += `</div>`;
     });
-    for (let i = 0; i < result.path.length - 1; i++) {
-      const edges = cy.edges().filter(e =>
-        (e.source().id() === result.path[i] && e.target().id() === result.path[i+1]) ||
-        (e.source().id() === result.path[i+1] && e.target().id() === result.path[i])
-      );
-      edges.addClass('trace-path');
-    }
+    h += `</div>`;
   }
 
-  traceHistory.unshift({ srcName: result.source_name, dstName: result.destination_name,
-    bw: result.e2e_bandwidth_gbps, lat: result.e2e_latency_ns,
-    srcId, dstId, result });
-  if (traceHistory.length > 10) traceHistory.pop();
+  h += `</div>`;
+  return h;
+}
 
-  renderTrace(result);
-  tabSwitch('trace');
-  document.getElementById('btn-clear').style.display = 'inline';
+function clickNode(id) {
+  const node = graph.nodes.find(n => n.data.id === id);
+  if (!node) return;
+  if (TRACEABLE.has(node.data.type)) pickNode(id);
+  else { showInfo(node.data); showTab('info'); }
+}
+
+function pickNode(id) {
+  if (!srcId) {
+    srcId = id;
+    clearHL();
+    hlNode(id, 'src-sel');
+    updSel();
+    const n = graph.nodes.find(n => n.data.id === id);
+    if (n) { showInfo(n.data); showTab('info'); }
+  } else if (!dstId && id !== srcId) {
+    dstId = id;
+    hlNode(id, 'dst-sel');
+    updSel();
+    doTrace(srcId, dstId);
+  }
+}
+
+async function doTrace(sid, did) {
+  const r = await fetch(`/api/trace?source=${sid}&destination=${did}`).then(r=>r.json());
+  if (r.path?.length > 0) {
+    r.path.forEach(nid => { if(nid!==sid&&nid!==did) hlNode(nid,'on-path'); });
+  }
+  hist.unshift({sn:r.source_name,dn:r.destination_name,bw:r.e2e_bandwidth_gbps,lat:r.e2e_latency_ns,sid,did,r});
+  if(hist.length>10) hist.pop();
+  renderTrace(r); showTab('trace');
+  document.getElementById('bclear').style.display='inline';
 }
 
 function renderTrace(r) {
-  if (!r.segments?.length) { setSB('<div class="empty-msg">No path found</div>'); return; }
+  if(!r.segments?.length){setSB('<div class="empty">No path found</div>');return;}
+  const ns=r.same_numa?'<span style="color:#22c55e">same</span>':'<span style="color:#f59e0b">cross</span>';
+  let h='<div class="section"><div class="stitle">'+r.source_name+' → '+r.destination_name+'</div>';
+  h+='<div class="cards">';
+  h+=`<div class="card"><div class="card-l">BW</div><div class="card-v">${r.e2e_bandwidth_gbps} GB/s</div></div>`;
+  h+=`<div class="card"><div class="card-l">Latency</div><div class="card-v">${r.e2e_latency_ns}ns</div></div>`;
+  h+=`<div class="card"><div class="card-l">NUMA</div><div class="card-v" style="font-size:12px">${ns}</div></div>`;
+  h+='</div>';
+  if(r.bottleneck)h+=`<div style="color:#e94560;font-size:10px;margin-bottom:8px;">⚠ ${r.bottleneck}</div>`;
+  h+='</div>';
 
-  const numaS = r.same_numa ? '<span style="color:#22c55e">same</span>' : '<span style="color:#f59e0b">cross</span>';
-  const maxBw = Math.max(...r.segments.map(s => s.theoretical_bw_gbps || 0), 1);
-
-  let h = '<div class="sb-section"><div class="sb-title">' + r.source_name + ' → ' + r.destination_name + '</div>';
-  h += '<div class="summary-row">';
-  h += `<div class="sum-card"><div class="sum-label">Bandwidth</div><div class="sum-value">${r.e2e_bandwidth_gbps} GB/s</div></div>`;
-  h += `<div class="sum-card"><div class="sum-label">Latency</div><div class="sum-value">${r.e2e_latency_ns}ns</div></div>`;
-  h += `<div class="sum-card"><div class="sum-label">NUMA</div><div class="sum-value">${numaS}</div></div>`;
-  h += '</div>';
-  if (r.bottleneck) h += `<div style="color:#e94560;font-size:11px;margin-bottom:10px;">⚠ Bottleneck: ${r.bottleneck}</div>`;
-  h += '</div>';
-
-  // Path
-  h += '<div class="sb-section"><div class="sb-title">Path</div>';
-  for (let i = 0; i < r.segments.length; i++) {
-    const s = r.segments[i];
-    const isBn = r.bottleneck && s.from_name && r.bottleneck.includes(s.from_name);
-    if (i === 0) h += `<div class="path-node src">${s.from_name}</div>`;
-    const lt = (s.link_type||'').includes('pcie') ? 'PCIe' : (s.link_type||'').includes('memory') ? 'DDR' : '→';
-    let bwBar = '';
-    if (s.theoretical_bw_gbps) {
-      const pct = Math.round(100 * (s.effective_bw_gbps||0) / maxBw);
-      bwBar = `<span class="bar" style="width:${pct}px"></span><span class="bar-bg" style="width:${100-pct}px"></span> ${s.effective_bw_gbps||0}/${s.theoretical_bw_gbps}`;
-    }
-    h += `<div class="path-link" onmouseenter="hlEdge(${i})" onmouseleave="unhlEdge(${i})"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns ${bwBar} ${isBn?'<span style="color:#e94560">◄</span>':''}</div>`;
-    h += `<div class="path-node ${i===r.segments.length-1?'dst':''} ${isBn?'bn':''}">${s.to_name}</div>`;
+  h+='<div class="section"><div class="stitle">Path</div>';
+  for(let i=0;i<r.segments.length;i++){
+    const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
+    if(i===0)h+=`<div class="pnode src">${s.from_name}</div>`;
+    const lt=(s.link_type||'').includes('pcie')?'PCIe':(s.link_type||'').includes('memory')?'DDR':'→';
+    const bw=s.effective_bw_gbps?` ${s.effective_bw_gbps}/${s.theoretical_bw_gbps} GB/s`:'';
+    h+=`<div class="plink" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?'<span style="color:#e94560">◄ BN</span>':''}</div>`;
+    h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}">${s.to_name}</div>`;
   }
-  h += '</div>';
+  h+='</div>';
 
-  // Breakdown table
-  h += '<div class="sb-section"><div class="sb-title">Breakdown</div>';
-  h += '<table class="bd-table"><tr><th>#</th><th>Segment</th><th>BW</th><th>Eff</th><th>Lat</th></tr>';
-  for (let i = 0; i < r.segments.length; i++) {
-    const s = r.segments[i];
-    const isBn = r.bottleneck && s.from_name && r.bottleneck.includes(s.from_name);
-    h += `<tr class="${isBn?'bn':''}" onmouseenter="hlEdge(${i})" onmouseleave="unhlEdge(${i})">`;
-    h += `<td>${i+1}</td><td style="font-size:10px">${s.from_name} → ${s.to_name}</td>`;
-    h += `<td>${s.theoretical_bw_gbps||'-'}</td><td>${s.effective_bw_gbps||'-'}</td><td>${s.latency_ns}ns</td></tr>`;
+  h+='<div class="section"><div class="stitle">Breakdown</div>';
+  h+='<table class="tbl"><tr><th>#</th><th>Segment</th><th>Theo</th><th>Eff</th><th>Lat</th></tr>';
+  for(let i=0;i<r.segments.length;i++){
+    const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
+    h+=`<tr ${bn?'style="color:#e94560"':''} onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">`;
+    h+=`<td>${i+1}</td><td>${s.from_name}→${s.to_name}</td><td>${s.theoretical_bw_gbps||'-'}</td><td>${s.effective_bw_gbps||'-'}</td><td>${s.latency_ns}ns</td></tr>`;
   }
-  h += `<tr style="border-top:2px solid #333"><td></td><td><b>E2E</b></td><td></td><td><b>${r.e2e_bandwidth_gbps}</b></td><td><b>${r.e2e_latency_ns}ns</b></td></tr>`;
-  h += '</table></div>';
-
+  h+=`<tr style="border-top:2px solid #333"><td></td><td><b>E2E</b></td><td></td><td><b>${r.e2e_bandwidth_gbps}</b></td><td><b>${r.e2e_latency_ns}ns</b></td></tr>`;
+  h+='</table></div>';
   setSB(h);
 }
 
-// Edge highlight from sidebar
-function hlEdge(i) {
-  if (!traceHistory.length) return;
-  const r = traceHistory[0].result;
-  if (!r.path || i >= r.path.length - 1) return;
-  const s = r.path[i], t = r.path[i+1];
-  cy.edges().forEach(e => {
-    if ((e.source().id()===s && e.target().id()===t) || (e.source().id()===t && e.target().id()===s)) {
-      e.addClass('edge-hl');
-    }
+function hlSeg(i){
+  if(!hist.length)return;
+  const r=hist[0].r;
+  if(!r.path||i>=r.path.length-1)return;
+  hlNode(r.path[i],'on-path');hlNode(r.path[i+1],'on-path');
+  document.querySelectorAll('.tbl tr').forEach((tr,idx)=>{if(idx===i+1)tr.classList.add('hl');});
+}
+function unhlSeg(){
+  document.querySelectorAll('.htree-node.on-path').forEach(el=>{
+    if(!el.classList.contains('src-sel')&&!el.classList.contains('dst-sel')) el.classList.remove('on-path');
   });
-  document.querySelectorAll('.bd-table tr').forEach((tr, idx) => {
-    if (idx === i + 1) tr.classList.add('hl');
-  });
-}
-function unhlEdge(i) {
-  cy.edges().removeClass('edge-hl');
-  document.querySelectorAll('.bd-table tr.hl').forEach(tr => tr.classList.remove('hl'));
-}
-
-function showInfo(nodeOrEdge) {
-  const d = nodeOrEdge.data();
-  let h = `<div class="sb-section"><div class="sb-title">${d.label || d.id}</div>`;
-  for (const [k, v] of Object.entries(d)) {
-    if (['id','label','source','target','parent'].includes(k)) continue;
-    if (v === null || v === undefined || v === '' || v === -1) continue;
-    const display = typeof v === 'object' ? JSON.stringify(v) : v;
-    h += `<div class="sb-field"><span class="sb-label">${k}</span><br><span class="sb-val">${display}</span></div>`;
-  }
-  h += '</div>';
-  setSB(h);
-}
-
-function showEdgeInfo(edge) {
-  const d = edge.data();
-  let h = `<div class="sb-section"><div class="sb-title">Edge</div>`;
-  h += `<div class="sb-field"><span class="sb-label">From</span><br><span class="sb-val">${edge.source().data('label')}</span></div>`;
-  h += `<div class="sb-field"><span class="sb-label">To</span><br><span class="sb-val">${edge.target().data('label')}</span></div>`;
-  for (const [k, v] of Object.entries(d)) {
-    if (['id','source','target','label'].includes(k)) continue;
-    if (v === null || v === undefined || v === '') continue;
-    h += `<div class="sb-field"><span class="sb-label">${k}</span><br><span class="sb-val">${v}</span></div>`;
-  }
-  h += '</div>';
-  setSB(h);
-  tabSwitch('info');
-}
-
-function showHistory() {
-  if (!traceHistory.length) { setSB('<div class="empty-msg">No trace history yet</div>'); return; }
-  let h = '<div class="sb-section"><div class="sb-title">Trace History</div>';
-  traceHistory.forEach((t, i) => {
-    h += `<div class="hist-item" onclick="replayTrace(${i})">`;
-    h += `<span>${t.srcName} → ${t.dstName}</span>`;
-    h += `<span class="hist-bw">${t.bw} GB/s · ${t.lat}ns</span></div>`;
-  });
-  h += '</div>';
-  setSB(h);
-}
-
-function replayTrace(i) {
-  const t = traceHistory[i];
-  clearAll();
-  const sn = cy.getElementById(t.srcId);
-  const dn = cy.getElementById(t.dstId);
-  if (sn.length) { srcNode = sn; sn.addClass('source'); }
-  if (dn.length) { dstNode = dn; dn.addClass('destination'); }
-  updateSelIndicator();
-
-  const r = t.result;
-  if (r.path?.length > 1) {
-    const pathSet = new Set(r.path);
-    cy.nodes().forEach(n => { if (pathSet.has(n.id()) && n.id()!==t.srcId && n.id()!==t.dstId) n.addClass('on-path'); });
-    for (let j = 0; j < r.path.length - 1; j++) {
-      cy.edges().filter(e =>
-        (e.source().id()===r.path[j] && e.target().id()===r.path[j+1]) ||
-        (e.source().id()===r.path[j+1] && e.target().id()===r.path[j])
-      ).addClass('trace-path');
-    }
-  }
-  renderTrace(r);
-  tabSwitch('trace');
-  document.getElementById('btn-clear').style.display = 'inline';
-}
-
-// Context menu
-function ctxAction(action) {
-  document.getElementById('ctx-menu').style.display = 'none';
-  if (!ctxTarget) return;
-  if (action === 'src') { clearAll(); srcNode = ctxTarget; ctxTarget.addClass('source'); updateSelIndicator(); }
-  else if (action === 'dst' && srcNode) { dstNode = ctxTarget; ctxTarget.addClass('destination'); updateSelIndicator(); doTrace(srcNode.id(), dstNode.id()); }
-  else if (action === 'mem') { clearAll(); srcNode = ctxTarget; ctxTarget.addClass('source'); dstNode = cy.getElementById('mc_0'); if(dstNode.length){dstNode.addClass('destination');updateSelIndicator();doTrace(srcNode.id(),'mc_0');} }
-  else if (action === 'info') { showInfo(ctxTarget); tabSwitch('info'); }
-}
-
-function promptTrace() {
-  const devices = [];
-  cy.nodes().forEach(n => { if (TRACEABLE.has(n.data('type'))) devices.push(n.data('label') + ' [' + n.id() + ']'); });
-  const srcInput = prompt('Source device:\n' + devices.join('\n'));
-  if (!srcInput) return;
-  const dstInput = prompt('Destination device (or "memory"):\n' + devices.join('\n'));
-  if (!dstInput) return;
-  // Simple matching
-  const findNode = (q) => {
-    if (q === 'memory') return cy.getElementById('mc_0');
-    const match = cy.nodes().filter(n => n.id().includes(q) || n.data('label').toLowerCase().includes(q.toLowerCase()));
-    return match.length ? match[0] : null;
-  };
-  const s = findNode(srcInput), d = findNode(dstInput);
-  if (s && d) { clearAll(); srcNode=s; s.addClass('source'); dstNode=d; d.addClass('destination'); updateSelIndicator(); doTrace(s.id(),d.id()); }
-  else alert('Device not found');
-}
-
-// UI helpers
-function clearAll() {
-  srcNode = null; dstNode = null;
-  cy.nodes().removeClass('source destination on-path');
-  cy.edges().removeClass('trace-path edge-hl');
-  updateSelIndicator();
-  document.getElementById('ctx-menu').style.display = 'none';
-  document.getElementById('btn-clear').style.display = 'none';
-}
-
-function updateSelIndicator() {
-  const el = document.getElementById('sel-indicator');
-  const txt = document.getElementById('sel-text');
-  if (!srcNode) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  if (srcNode && !dstNode) {
-    txt.innerHTML = `<span class="sel-src">SRC: ${srcNode.data('label')}</span> <span class="sel-arrow">→</span> <span style="color:#666">click destination...</span>`;
-  } else if (srcNode && dstNode) {
-    txt.innerHTML = `<span class="sel-src">SRC: ${srcNode.data('label')}</span> <span class="sel-arrow">→</span> <span class="sel-dst">DST: ${dstNode.data('label')}</span>`;
+  document.querySelectorAll('.tbl tr.hl').forEach(tr=>tr.classList.remove('hl'));
+  // re-apply trace path highlights
+  if(hist.length&&hist[0].r.path){
+    hist[0].r.path.forEach(nid=>{
+      if(nid!==srcId&&nid!==dstId) hlNode(nid,'on-path');
+    });
   }
 }
 
-function tabSwitch(name) {
-  currentTab = name;
-  document.querySelectorAll('.sb-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === name));
-  if (name === 'history') showHistory();
-  else if (name === 'trace' && traceHistory.length) renderTrace(traceHistory[0].result);
+function showInfo(d){
+  let h=`<div class="section"><div class="stitle">${d.label||d.id}</div>`;
+  for(const[k,v]of Object.entries(d)){
+    if(['id','label','source','target','parent'].includes(k))continue;
+    if(v===null||v===undefined||v===''||v===-1)continue;
+    h+=`<div class="field"><span class="flabel">${k}</span><br><span class="fval">${typeof v==='object'?JSON.stringify(v):v}</span></div>`;
+  }
+  h+='</div>';setSB(h);
 }
 
-function setSB(html) { document.getElementById('sb-content').innerHTML = html; }
-
-async function reload() {
-  await fetch('/api/topology/reload', { method: 'POST' });
-  location.reload();
+function showHistory(){
+  if(!hist.length){setSB('<div class="empty">No history</div>');return;}
+  let h='<div class="section"><div class="stitle">History</div>';
+  hist.forEach((t,i)=>{h+=`<div class="hist" onclick="replay(${i})"><span>${t.sn}→${t.dn}</span><span style="color:#06b6d4">${t.bw}GB/s·${t.lat}ns</span></div>`;});
+  h+='</div>';setSB(h);
 }
+
+function replay(i){
+  const t=hist[i]; clearSel();
+  srcId=t.sid;dstId=t.did; hlNode(t.sid,'src-sel');hlNode(t.did,'dst-sel');
+  if(t.r.path) t.r.path.forEach(nid=>{if(nid!==t.sid&&nid!==t.did)hlNode(nid,'on-path');});
+  updSel();renderTrace(t.r);showTab('trace');
+  document.getElementById('bclear').style.display='inline';
+}
+
+function hlNode(id,cls){const el=document.getElementById('n_'+id.replace(/[:.]/g,'_'));if(el)el.classList.add(cls);}
+function clearHL(){document.querySelectorAll('.htree-node').forEach(el=>el.classList.remove('src-sel','dst-sel','on-path'));}
+function clearSel(){srcId=null;dstId=null;clearHL();updSel();document.getElementById('bclear').style.display='none';}
+
+function updSel(){
+  const bar=document.getElementById('sel-bar'),txt=document.getElementById('sel-text');
+  if(!srcId){bar.style.display='none';return;}
+  bar.style.display='block';
+  const sn=graph.nodes.find(n=>n.data.id===srcId)?.data.label||srcId;
+  if(!dstId)txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">SRC:${sn}</span> <span style="color:#666">→ click dest...</span>`;
+  else{const dn=graph.nodes.find(n=>n.data.id===dstId)?.data.label||dstId;txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">${sn}</span><span style="color:#666">→</span><span style="color:#f59e0b;font-weight:bold">${dn}</span>`;}
+}
+
+function showTab(t){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('on',el.textContent.toLowerCase()===t));
+  if(t==='history')showHistory();
+  else if(t==='trace'&&hist.length)renderTrace(hist[0].r);
+}
+function setSB(h){document.getElementById('sb').innerHTML=h;}
 
 init();
 </script>
