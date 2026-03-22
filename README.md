@@ -15,7 +15,7 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 
 ### 지원 예정 기능
 
-- **다양한 Transfer Mode**: DMA, RDMA (RoCEv2/InfiniBand), GPUDirect RDMA, GPUDirect Storage, PCIe P2P, NVLink P2P
+- **다양한 Transfer Mode**: DMA, RDMA (RoCEv2/InfiniBand), GPUDirect RDMA, GPUDirect Storage, PCIe P2P, NVLink P2P, UCIe (chiplet interconnect)
 - **PCIe Capability 분석**: ACS/ARI/ATS 상태에 따른 경로 변화 시각화, IOMMU 그룹 구성 예측
 - **시스템 설정 영향 분석**: `iommu=pt`, ASPM, hugepage, CPU governor, `pcie_acs_override`, `disable_acs_redir` 등 BIOS/커널 설정 변경의 BW/latency 영향 시뮬레이션
 - **VM/VFIO Overlay**: QEMU/libvirt/KubeVirt 설정 파싱 → vCPU pinning, VFIO 디바이스 매핑 시각화 + NUMA 불일치 감지

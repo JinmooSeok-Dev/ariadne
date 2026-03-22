@@ -26,6 +26,7 @@ class LinkType(str, Enum):
   INTERNAL = "internal"
   PCIE = "pcie"
   NVLINK = "nvlink"
+  UCIE = "ucie"
   MEMORY = "memory"
   UPI = "upi"
   INFINITY_FABRIC = "infinity_fabric"
