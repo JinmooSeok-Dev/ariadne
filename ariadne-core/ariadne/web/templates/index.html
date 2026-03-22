@@ -71,8 +71,9 @@
     .edge-line.trace-hl { stroke:#e94560 !important; stroke-width:4 !important; stroke-dasharray:none !important; }
     .edge-line.seg-hl { stroke:#fff !important; stroke-width:5 !important; stroke-dasharray:none !important; }
     .edge-line:hover { stroke-width:5; stroke:#fff; }
-    .edge-bw { font-size:9px; fill:#22d3ee; font-weight:bold; pointer-events:none; display:none; }
-    .edge-group:hover .edge-bw { display:block; }
+    .edge-bw { font-size:9px; fill:#22d3ee; font-weight:bold; pointer-events:none; opacity:0; transition:opacity 0.15s; }
+    .edge-bg { pointer-events:none; opacity:0; transition:opacity 0.15s; }
+    .edge-group:hover .edge-bw, .edge-group:hover .edge-bg { opacity:1; }
 
     /* Context menu */
     #ctx { position:absolute; background:#1a1a2e; border:1px solid #444; border-radius:6px; padding:4px 0; display:none; z-index:50; min-width:200px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
@@ -320,6 +321,7 @@ function drawEdges() {
     hitPath.setAttribute('stroke', 'transparent');
     hitPath.setAttribute('stroke-width', '16');
     hitPath.setAttribute('fill', 'none');
+    hitPath.setAttribute('pointer-events', 'stroke');
     g.appendChild(hitPath);
 
     // 보이는 edge
@@ -341,7 +343,7 @@ function drawEdges() {
       bg.setAttribute('height', 14);
       bg.setAttribute('rx', 3);
       bg.setAttribute('fill', '#0f0f1a');
-      bg.setAttribute('class', 'edge-bw');
+      bg.setAttribute('class', 'edge-bg');
       g.appendChild(bg);
       // 텍스트
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
