@@ -23,6 +23,11 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 - **멀티 VM**: 여러 VM의 데이터 흐름을 색상 구분하여 공유 Link 경합 시각화
 - **Web UI**: React + D3.js 기반 인터랙티브 토폴로지 시각화 + 시뮬레이션 결과 대시보드
 
+## 요구사항
+
+- **OS**: Linux (sysfs/procfs 기반 — macOS, Windows 미지원)
+- **Python**: 3.10+
+
 ## 설치
 
 ```bash
