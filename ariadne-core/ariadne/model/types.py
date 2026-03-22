@@ -19,6 +19,7 @@ class ComponentType(str, Enum):
   GPU = "gpu"
   NIC = "nic"
   NVME = "nvme"
+  NPU = "npu"
 
 
 class LinkType(str, Enum):

@@ -223,7 +223,10 @@ def _short_type(type_name: str) -> str:
     "Audio Device": "audio",
     "USB Controller": "usb",
     "SATA Controller": "sata",
+    "Processing Accelerator": "npu",
   }
+  if type_name.startswith("NPU"):
+    return "npu"
   return mapping.get(type_name, type_name.lower().split()[0])
 
 

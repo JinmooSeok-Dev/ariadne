@@ -36,6 +36,7 @@ PCI_CLASS_NAMES = {
   0x05: "Memory",
   0x08: "System",
   0x00: "Unclassified",
+  0x12: "Processing Accelerator",
 }
 
 PCI_SUBCLASS_NAMES = {
@@ -52,6 +53,7 @@ PCI_SUBCLASS_NAMES = {
   (0x04, 0x03): "Audio Device",
   (0x07, 0x80): "Communication Controller",
   (0x05, 0x00): "RAM Controller",
+  (0x12, 0x00): "Processing Accelerator",
 }
 
 PCIE_SPEEDS = {
@@ -89,8 +91,8 @@ def _read_sysfs_hex(path: Path) -> int:
   return _read_sysfs_int(path, 16)
 
 
-def classify_device(class_code: int) -> ComponentType:
-  """PCI class code에서 Ariadne ComponentType 결정."""
+def classify_device(class_code: int, vendor: int = 0) -> ComponentType:
+  """PCI class code + vendor에서 Ariadne ComponentType 결정."""
   base_class = (class_code >> 16) & 0xFF
   sub_class = (class_code >> 8) & 0xFF
 
@@ -104,16 +106,27 @@ def classify_device(class_code: int) -> ComponentType:
     return ComponentType.NIC
   if base_class == 0x01 and sub_class == 0x08:
     return ComponentType.NVME
+  if base_class == 0x12:
+    return ComponentType.NPU
+  if vendor == 0x1eff:
+    return ComponentType.NPU
   return ComponentType.PCIE_ENDPOINT
 
 
-def get_device_type_name(class_code: int) -> str:
-  """PCI class code에서 사람이 읽을 수 있는 이름."""
+def get_device_type_name(class_code: int, vendor: int = 0, device_id: int = 0) -> str:
+  """PCI class code에서 사람이 읽을 수 있는 이름. NPU는 제품명 포함."""
+  if vendor == 0x1eff:
+    product = REBELLIONS_DEVICES.get(device_id)
+    if product:
+      return f"NPU {product}"
+    return "NPU"
   base_class = (class_code >> 16) & 0xFF
   sub_class = (class_code >> 8) & 0xFF
   name = PCI_SUBCLASS_NAMES.get((base_class, sub_class))
   if name:
     return name
+  if base_class == 0x12:
+    return "Processing Accelerator"
   return PCI_CLASS_NAMES.get(base_class, f"Class {base_class:#04x}")
 
 
@@ -201,8 +214,8 @@ def collect_pci_devices(sysfs_base: Path = SYSFS_PCI_BASE) -> list[dict]:
       "enabled": enabled,
       "bars": bars,
       "parent_bdf": parent_bdf,
-      "component_type": classify_device(class_code),
-      "type_name": get_device_type_name(class_code),
+      "component_type": classify_device(class_code, vendor),
+      "type_name": get_device_type_name(class_code, vendor, device_id),
     })
 
   return devices
@@ -279,8 +292,29 @@ KNOWN_VENDORS = {
   0x1987: "Phison",
   0x126f: "Silicon Motion",
   0x1e0f: "KIOXIA",
+  0x1eff: "Rebellions",
+}
+
+
+REBELLIONS_DEVICES = {
+  # ATOM+ — Single chip, PCIe Gen5 x16, 16GB GDDR6, 256GB/s
+  0x1220: "ATOM+ CA22 (PF)",
+  0x1221: "ATOM+ CA22 (VF)",
+  # ATOM Max — 4 chips, PCIe Gen5 x16, 64GB GDDR6, 1024GB/s, 350W
+  0x1250: "ATOM-MAX CA25 (PF)",
+  0x1251: "ATOM-MAX CA25 (VF)",
+  # REBEL — Quad chiplet, UCIe, 144GB HBM3E, 4.8TB/s, PCIe Gen5 x16 dual, 300W
+  0x1210: "REBEL CA21 (PF)",
+  0x1211: "REBEL CA21 (VF)",
 }
 
 
 def get_short_vendor_name(vendor_id: int) -> str:
   return KNOWN_VENDORS.get(vendor_id, f"{vendor_id:#06x}")
+
+
+def get_device_product_name(vendor_id: int, device_id: int) -> str:
+  """벤더별 제품명 반환."""
+  if vendor_id == 0x1eff:
+    return REBELLIONS_DEVICES.get(device_id, f"RBLN-{device_id:#06x}")
+  return ""

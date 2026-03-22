@@ -160,7 +160,7 @@ def _render_endpoint(parent_tree, ep) -> None:
   """단일 PCIe endpoint를 트리에 추가."""
   from ariadne.collector.pcie import calc_pcie_bandwidth, get_pcie_gen
 
-  color = TYPE_COLORS.get(ep.type_name, "white")
+  color = TYPE_COLORS.get(ep.type_name, "cyan" if ep.type_name.startswith("NPU") else "white")
   bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
   gen = get_pcie_gen(ep.current_link_speed)
   width = f"x{ep.current_link_width}" if ep.current_link_width else ""
