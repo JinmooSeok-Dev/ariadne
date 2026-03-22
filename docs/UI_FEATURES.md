@@ -132,6 +132,8 @@
 | 항목 | 설명 |
 |------|------|
 | **Edge hover 겹침** | 같은 bus를 공유하는 edge들이 겹치는 구간에서 hover 이벤트가 정확히 동작하지 않음 |
+| **Cross-NUMA 연결 시각화** | 멀티 NUMA 환경에서 NUMA 간 UPI/IF 연결이 트리에 표현 안 됨. 트리 구조의 한계 — cross-tree 연결을 위한 별도 시각화 방식 설계 필요 (NUMA distance matrix, overlay 등) |
+| **토폴로지 물리 구조** | MC, RC가 현재 NUMA 자식이지만 실제로는 Socket 내부. 물리 구조 반영 여부 검토 필요 |
 
 ### Sidebar 개선
 
