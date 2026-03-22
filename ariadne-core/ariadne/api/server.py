@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from ariadne.model.topology import build_topology
@@ -11,8 +12,10 @@ from ariadne.model.types import SystemTopology
 from ariadne.analyzer.trace import trace_path
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "web" / "templates"
+STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
 
 app = FastAPI(title="Ariadne", description="System topology E2E data flow tracer")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 _cached_topo: SystemTopology | None = None
