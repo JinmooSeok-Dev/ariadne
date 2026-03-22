@@ -41,16 +41,12 @@ async def get_topology():
 
 @app.get("/api/topology/graph")
 async def get_topology_graph():
-  """일반 노드 + edge 트리. 모든 디바이스 표시."""
+  """일반 노드 + edge 트리. CPU/Cache/Memory + PCIe 모든 컴포넌트 표시."""
   topo = _get_topology()
-
-  skip_types = {"cpu_core", "cache", "dram"}
 
   nodes = []
   visible_ids = set()
   for comp in topo.components:
-    if comp.type.value in skip_types:
-      continue
     visible_ids.add(comp.id)
     node_data = {
       "id": comp.id,

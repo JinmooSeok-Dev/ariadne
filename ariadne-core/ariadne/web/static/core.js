@@ -3,6 +3,7 @@
 // === 상수 ===
 const COLORS = {
   numa_node:'#f0c040', socket:'#4ecdc4', memory_controller:'#3b82f6',
+  cpu_core:'#38bdf8', cache:'#94a3b8', dram:'#60a5fa',
   pcie_root_complex:'#e94560', pcie_root_port:'#7c3aed',
   gpu:'#22c55e', npu:'#06b6d4', nic:'#a855f7', nvme:'#f59e0b', pcie_endpoint:'#6b7280',
 };
