@@ -44,7 +44,7 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--color-bg); 
 /* Tree panel */
 #tree-panel { flex:1; overflow:auto; padding:20px; position:relative; }
 #tree-content { transform-origin:0 0; transition:transform 0.1s ease; position:relative; }
-#zoom-controls { position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:4px; }
+#zoom-controls { position:sticky; top:8px; float:right; z-index:5; display:flex; gap:4px; margin-right:8px; }
 .zoom-btn { width:32px; height:28px; border:1px solid #444; border-radius:4px; background:var(--color-panel); color:#ccc; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .zoom-btn:hover { background:#333; }
 #zoom-level { font-size:10px; color:#888; padding:0 6px; line-height:28px; }
