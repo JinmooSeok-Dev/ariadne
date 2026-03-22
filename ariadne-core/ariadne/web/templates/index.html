@@ -7,28 +7,23 @@
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',system-ui,sans-serif; background:#0f0f1a; color:#eee; overflow:hidden; }
 
-    #header { height:40px; padding:0 16px; background:#1a1a2e; border-bottom:1px solid #333; display:flex; align-items:center; gap:12px; }
+    #header { height:40px; padding:0 16px; background:#1a1a2e; border-bottom:1px solid #333; display:flex; align-items:center; gap:10px; }
     #header h1 { font-size:15px; color:#e94560; }
     .info { color:#666; font-size:11px; }
     .spacer { flex:1; }
     .btn { padding:4px 12px; border-radius:4px; font-size:11px; cursor:pointer; border:none; font-weight:bold; }
     .btn-gray { background:#333; color:#ccc; }
+    #search { padding:4px 8px; border-radius:4px; border:1px solid #444; background:#0f0f1a; color:#ddd; font-size:11px; width:160px; outline:none; }
+    #search:focus { border-color:#e94560; }
+    #search::placeholder { color:#555; }
 
     #main { display:flex; height:calc(100vh - 40px); }
 
-    /* Horizontal Tree */
+    /* Tree */
     #tree-panel { flex:1; overflow:auto; padding:20px; position:relative; }
     #tree-content { transform-origin:0 0; transition:transform 0.1s ease; }
-
-    #zoom-controls {
-      position:absolute; top:8px; right:8px; z-index:5;
-      display:flex; gap:4px;
-    }
-    .zoom-btn {
-      width:32px; height:28px; border:1px solid #444; border-radius:4px;
-      background:#1a1a2e; color:#ccc; font-size:14px; cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-    }
+    #zoom-controls { position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:4px; }
+    .zoom-btn { width:32px; height:28px; border:1px solid #444; border-radius:4px; background:#1a1a2e; color:#ccc; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .zoom-btn:hover { background:#333; }
     #zoom-level { font-size:10px; color:#888; padding:0 6px; line-height:28px; }
 
@@ -37,52 +32,40 @@
       display:inline-flex; align-items:center; gap:4px;
       padding:5px 10px; border-radius:5px; cursor:pointer;
       white-space:nowrap; font-size:11px;
-      border:1.5px solid transparent;
-      flex-shrink:0;
-      min-width:160px;
+      border:1.5px solid transparent; flex-shrink:0; min-width:160px;
     }
     .htree-node:hover { filter:brightness(1.3); }
-    .htree-node.src-sel { border-color:#22c55e !important; }
-    .htree-node.dst-sel { border-color:#f59e0b !important; }
+    .htree-node.src-sel { border-color:#22c55e !important; box-shadow:0 0 8px rgba(34,197,94,0.3); }
+    .htree-node.dst-sel { border-color:#f59e0b !important; box-shadow:0 0 8px rgba(245,158,11,0.3); }
     .htree-node.on-path { border-color:#e94560 !important; }
+    .htree-node.search-hl { box-shadow:0 0 10px rgba(233,69,96,0.5); filter:brightness(1.4); }
+    .htree-node.search-dim { opacity:0.3; }
 
     .htree-toggle { font-size:9px; color:#aaa; cursor:pointer; width:14px; text-align:center; flex-shrink:0; user-select:none; }
     .htree-toggle:hover { color:#fff; }
     .htree-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
     .htree-count { font-size:8px; color:#fff; background:#e94560; padding:0 5px; border-radius:8px; margin-left:4px; }
-    .htree-children.folded { display:none; }
-    .htree-connector.folded { display:none; }
     .htree-label { font-weight:500; }
     .htree-badge { font-size:8px; color:#ccc; background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; }
     .htree-bw { font-size:8px; color:#22d3ee; font-weight:bold; }
     .htree-iommu { font-size:8px; color:#fbbf24; font-weight:bold; }
-
-    /* Parent → children 연결 */
+    .htree-children { display:flex; flex-direction:column; border-left:2.5px solid #aaa; padding:4px 0; gap:2px; }
+    .htree-children.folded { display:none; }
     .htree-connector { width:36px; border-top:2.5px solid #aaa; flex-shrink:0; }
-
-    /* Children 컨테이너: 왼쪽 세로선 */
-    .htree-children {
-      display:flex; flex-direction:column;
-      border-left:2.5px solid #aaa;
-      padding:4px 0;
-      gap:2px;
-    }
-
-    /* 각 child → 가로선 + 재귀 */
-    .htree-child {
-      display:flex; align-items:center;
-      padding:2px 0;
-    }
-    .htree-hline {
-      width:32px; border-top:2.5px solid #aaa; flex-shrink:0;
-      position:relative;
-    }
+    .htree-connector.folded { display:none; }
+    .htree-child { display:flex; align-items:center; padding:2px 0; }
+    .htree-hline { width:32px; border-top:2.5px solid #aaa; flex-shrink:0; position:relative; }
     .htree-hline.pcie { border-color:#ff6b81; border-top-width:3px; }
     .htree-hline.internal { border-color:#aaa; border-top-style:dashed; }
-    .htree-bw-label {
-      font-size:8px; color:#22d3ee; font-weight:bold; position:absolute;
-      top:-12px; left:4px; white-space:nowrap;
-    }
+    .htree-hline.trace-hl { border-color:#e94560 !important; border-top-width:4px !important; border-top-style:solid !important; }
+    .htree-hline.seg-hl { border-color:#fff !important; border-top-width:4px !important; border-top-style:solid !important; }
+    .htree-bw-label { font-size:8px; color:#22d3ee; font-weight:bold; position:absolute; top:-12px; left:4px; white-space:nowrap; }
+
+    /* Context menu */
+    #ctx { position:absolute; background:#1a1a2e; border:1px solid #444; border-radius:6px; padding:4px 0; display:none; z-index:50; min-width:200px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
+    .ctx-i { padding:7px 14px; font-size:12px; cursor:pointer; color:#ddd; }
+    .ctx-i:hover { background:rgba(233,69,96,0.15); }
+    .ctx-sep { border-top:1px solid #333; margin:2px 0; }
 
     /* Sidebar */
     #sidebar { width:380px; background:#1a1a2e; border-left:1px solid #333; display:flex; flex-direction:column; }
@@ -90,32 +73,28 @@
     .tab { flex:1; padding:8px; text-align:center; font-size:11px; cursor:pointer; color:#666; border-bottom:2px solid transparent; font-weight:bold; }
     .tab.on { color:#e94560; border-bottom-color:#e94560; }
     #sb { flex:1; overflow-y:auto; padding:12px; }
-
     .section { margin-bottom:14px; }
     .stitle { font-size:11px; color:#e94560; font-weight:bold; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:3px; }
     .field { margin-bottom:3px; }
     .flabel { font-size:9px; color:#666; }
     .fval { font-size:11px; color:#ddd; }
-
     .cards { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
     .card { flex:1; min-width:70px; background:#0f0f1a; border:1px solid #222; border-radius:5px; padding:6px; text-align:center; }
     .card-l { font-size:8px; color:#666; text-transform:uppercase; }
     .card-v { font-size:16px; font-weight:bold; color:#06b6d4; }
-
-    .pnode { font-size:10px; padding:4px 8px; background:#0f0f1a; border-left:3px solid #444; border-radius:0 3px 3px 0; margin:1px 0; }
+    .pnode { font-size:10px; padding:4px 8px; background:#0f0f1a; border-left:3px solid #444; border-radius:0 3px 3px 0; margin:1px 0; cursor:pointer; }
+    .pnode:hover { background:#1a1a2e; }
     .pnode.src { border-left-color:#22c55e; }
     .pnode.dst { border-left-color:#f59e0b; }
-    .plink { font-size:9px; color:#777; padding:1px 0 1px 14px; border-left:1px dashed #333; margin-left:4px; }
-
+    .plink { font-size:9px; color:#777; padding:1px 0 1px 14px; border-left:1px dashed #333; margin-left:4px; cursor:pointer; }
+    .plink:hover { color:#fff; }
     .tbl { width:100%; border-collapse:collapse; font-size:10px; }
     .tbl th { color:#666; font-size:8px; text-transform:uppercase; padding:3px 4px; text-align:left; border-bottom:1px solid #333; }
     .tbl td { padding:3px 4px; border-bottom:1px solid #1a1a2e; }
-    .tbl tr:hover { background:rgba(233,69,96,0.08); }
+    .tbl tr:hover { background:rgba(233,69,96,0.08); cursor:pointer; }
     .tbl tr.hl { background:rgba(255,255,255,0.06); }
-
     .hist { padding:6px 8px; border-radius:3px; font-size:10px; cursor:pointer; margin:2px 0; display:flex; justify-content:space-between; background:#0f0f1a; border-left:3px solid #333; }
     .hist:hover { border-left-color:#e94560; background:#1a1a2e; }
-
     #sel-bar { position:fixed; top:48px; left:50%; transform:translateX(-50%); background:rgba(20,20,40,0.95); padding:6px 14px; border-radius:6px; font-size:12px; z-index:5; display:none; }
     .empty { color:#999; font-size:12px; padding:20px; text-align:center; line-height:1.8; }
   </style>
@@ -125,6 +104,7 @@
   <h1>Ariadne</h1>
   <span class="info" id="hinfo"></span>
   <div class="spacer"></div>
+  <input type="text" id="search" placeholder="Search device..." oninput="searchDev(this.value)">
   <button class="btn btn-gray" id="bclear" style="display:none" onclick="clearSel()">Clear (ESC)</button>
   <button class="btn btn-gray" onclick="location.reload()">Reload</button>
 </div>
@@ -150,10 +130,21 @@
       <div class="empty">
         Click a device to set as <span style="color:#22c55e">Source</span><br>
         then click another as <span style="color:#f59e0b">Destination</span><br><br>
-        <span style="color:#444">ESC to clear</span>
+        Right-click for quick options<br>
+        <span style="color:#666">ESC to clear · Search to find</span>
       </div>
     </div>
   </div>
+</div>
+
+<div id="ctx">
+  <div class="ctx-i" onclick="ctxDo('src')">🟢 Set as Source</div>
+  <div class="ctx-i" onclick="ctxDo('dst')">🟡 Set as Destination</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-i" onclick="ctxDo('mem')">📦 Trace to Memory</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-i" onclick="ctxDo('swap')">🔄 Swap Source ↔ Dest</div>
+  <div class="ctx-i" onclick="ctxDo('info')">ℹ️ Device Info</div>
 </div>
 
 <script>
@@ -164,8 +155,8 @@ const COLORS = {
 };
 const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
 
-let graph=null, topo=null;
-let srcId=null, dstId=null, hist=[];
+let graph=null, topo=null, nodeMap={}, childrenOf={};
+let srcId=null, dstId=null, hist=[], ctxNodeId=null, lastTrace=null;
 
 async function init() {
   [graph, topo] = await Promise.all([
@@ -174,35 +165,36 @@ async function init() {
   ]);
   document.getElementById('hinfo').textContent =
     `${topo.hostname} · ${topo.numa_nodes.length} NUMA · ${topo.cpu_cores.length} cores · ${topo.pci_devices.length} PCI`;
-  renderTree();
-  document.addEventListener('keydown', e => { if(e.key==='Escape') clearSel(); });
-}
 
-function renderTree() {
-  const nodeMap = {};
+  nodeMap = {};
   graph.nodes.forEach(n => nodeMap[n.data.id] = n.data);
-
-  const childrenOf = {};
-  const hasParent = new Set();
+  childrenOf = {};
   graph.edges.forEach(e => {
     if (!childrenOf[e.data.source]) childrenOf[e.data.source] = [];
     childrenOf[e.data.source].push(e.data);
-    hasParent.add(e.data.target);
   });
 
+  renderTree();
+  document.addEventListener('keydown', e => { if(e.key==='Escape'){clearSel();hideCtx();} });
+  document.addEventListener('click', () => hideCtx());
+}
+
+function renderTree() {
+  const hasParent = new Set();
+  graph.edges.forEach(e => hasParent.add(e.data.target));
   const roots = graph.nodes.filter(n => !hasParent.has(n.data.id)).map(n => n.data.id);
   let html = '';
-  roots.forEach(r => { html += buildNode(r, nodeMap, childrenOf); });
+  roots.forEach(r => { html += buildNode(r); });
   document.getElementById('tree-content').innerHTML = html;
   zoomFit();
 }
 
-function buildNode(id, nodeMap, childrenOf) {
+function buildNode(id) {
   const node = nodeMap[id];
   if (!node) return '';
   const kids = childrenOf[id] || [];
   const color = COLORS[node.type] || '#666';
-  const nid = id.replace(/[:.]/g, '_');
+  const nid = esc(id);
 
   let badges = '';
   if (node.link) badges += `<span class="htree-badge">${node.link}</span>`;
@@ -211,101 +203,149 @@ function buildNode(id, nodeMap, childrenOf) {
   if (node.memory_mb) badges += `<span class="htree-badge">${Math.round(node.memory_mb/1024)}GB</span>`;
   if (node.cpu_count) badges += `<span class="htree-badge">${node.cpu_count}CPU</span>`;
 
-  const totalDescendants = countDescendants(id, childrenOf);
-  const childrenId = `ch_${nid}`;
-  const connId = `conn_${nid}`;
+  const cnt = countDesc(id);
+  const chId = `ch_${nid}`, coId = `co_${nid}`;
 
   let h = `<div class="htree">`;
-
-  // 노드 박스
-  h += `<div class="htree-node" id="n_${nid}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')">`;
-  if (kids.length > 0) {
-    h += `<span class="htree-toggle" onclick="event.stopPropagation();toggleFold('${childrenId}','${connId}',this)">▼</span>`;
-  }
+  h += `<div class="htree-node" id="n_${nid}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')" oncontextmenu="showCtx(event,'${id}')">`;
+  if (kids.length > 0) h += `<span class="htree-toggle" onclick="event.stopPropagation();fold('${chId}','${coId}',this)">▼</span>`;
   h += `<span class="htree-dot" style="background:${color}"></span>`;
   h += `<span class="htree-label">${node.label}</span>`;
   h += badges;
-  if (kids.length > 0) {
-    h += `<span class="htree-count" id="cnt_${nid}" style="display:none">${totalDescendants}</span>`;
-  }
+  if (kids.length > 0) h += `<span class="htree-count" id="ct_${nid}" style="display:none">${cnt}</span>`;
   h += `</div>`;
 
-  // 자식이 있으면: 커넥터 + 세로선 + 각 child
   if (kids.length > 0) {
-    h += `<div class="htree-connector" id="${connId}"></div>`;
-    h += `<div class="htree-children" id="${childrenId}">`;
-    kids.forEach(edge => {
-      const lineClass = edge.type === 'internal' ? 'internal' : 'pcie';
+    h += `<div class="htree-connector" id="${coId}"></div>`;
+    h += `<div class="htree-children" id="${chId}">`;
+    kids.forEach((edge, idx) => {
+      const lc = edge.type === 'internal' ? 'internal' : 'pcie';
+      const eId = `e_${esc(edge.source)}_${esc(edge.target)}`;
       h += `<div class="htree-child">`;
-      h += `<div class="htree-hline ${lineClass}">`;
-      if (edge.bandwidth_gbps) {
-        h += `<span class="htree-bw-label">${edge.bandwidth_gbps}</span>`;
-      }
+      h += `<div class="htree-hline ${lc}" id="${eId}">`;
+      if (edge.bandwidth_gbps) h += `<span class="htree-bw-label">${edge.bandwidth_gbps}</span>`;
       h += `</div>`;
-      h += buildNode(edge.target, nodeMap, childrenOf);
+      h += buildNode(edge.target);
       h += `</div>`;
     });
     h += `</div>`;
   }
-
   h += `</div>`;
   return h;
 }
 
-function countDescendants(id, childrenOf) {
-  const kids = childrenOf[id] || [];
-  let count = kids.length;
-  kids.forEach(edge => { count += countDescendants(edge.target, childrenOf); });
-  return count;
-}
+function esc(id) { return id.replace(/[:.]/g, '_'); }
+function countDesc(id) { const k=childrenOf[id]||[]; let c=k.length; k.forEach(e=>{c+=countDesc(e.target);}); return c; }
 
-function toggleFold(childrenId, connId, toggleEl) {
-  const ch = document.getElementById(childrenId);
-  const conn = document.getElementById(connId);
+function fold(chId, coId, el) {
+  const ch = document.getElementById(chId);
+  const co = document.getElementById(coId);
   if (!ch) return;
   const folding = !ch.classList.contains('folded');
-  ch.classList.toggle('folded');
-  if (conn) conn.classList.toggle('folded');
-  toggleEl.textContent = folding ? '▶' : '▼';
-
-  // 카운트 뱃지 표시/숨김
-  const nid = childrenId.replace('ch_','cnt_');
-  const cnt = document.getElementById(nid);
-  if (cnt) cnt.style.display = folding ? 'inline' : 'none';
+  ch.classList.toggle('folded'); if(co) co.classList.toggle('folded');
+  el.textContent = folding ? '▶' : '▼';
+  const ct = document.getElementById(chId.replace('ch_','ct_'));
+  if (ct) ct.style.display = folding ? 'inline' : 'none';
 }
 
+// === 입력 방식 ===
 function clickNode(id) {
-  const node = graph.nodes.find(n => n.data.id === id);
-  if (!node) return;
-  if (TRACEABLE.has(node.data.type)) pickNode(id);
-  else { showInfo(node.data); showTab('info'); }
+  const node = nodeMap[id];
+  if (!node || !TRACEABLE.has(node.type)) { showInfo(node); showTab('info'); return; }
+  pickNode(id);
 }
 
 function pickNode(id) {
   if (!srcId) {
-    srcId = id;
-    clearHL();
-    hlNode(id, 'src-sel');
-    updSel();
-    const n = graph.nodes.find(n => n.data.id === id);
-    if (n) { showInfo(n.data); showTab('info'); }
-  } else if (!dstId && id !== srcId) {
-    dstId = id;
-    hlNode(id, 'dst-sel');
-    updSel();
+    // 첫 선택 = source
+    setSrc(id);
+  } else if (!dstId) {
+    if (id === srcId) return;
+    // 두 번째 선택 = destination → trace
+    setDst(id);
     doTrace(srcId, dstId);
+  } else {
+    // 이미 trace 완료 상태 → 새로운 source로 교체
+    clearSel();
+    setSrc(id);
   }
 }
 
+function setSrc(id) {
+  srcId = id; dstId = null;
+  clearHL();
+  hlNode(id, 'src-sel');
+  updSel();
+  showInfo(nodeMap[id]); showTab('info');
+  document.getElementById('bclear').style.display = 'inline';
+}
+
+function setDst(id) {
+  dstId = id;
+  hlNode(id, 'dst-sel');
+  updSel();
+}
+
+// 우클릭 메뉴
+function showCtx(e, id) {
+  e.preventDefault(); e.stopPropagation();
+  if (!TRACEABLE.has(nodeMap[id]?.type)) return;
+  ctxNodeId = id;
+  const m = document.getElementById('ctx');
+  m.style.display = 'block';
+  m.style.left = e.pageX + 'px';
+  m.style.top = e.pageY + 'px';
+}
+function hideCtx() { document.getElementById('ctx').style.display = 'none'; }
+
+function ctxDo(action) {
+  hideCtx();
+  if (!ctxNodeId) return;
+  if (action === 'src') { setSrc(ctxNodeId); }
+  else if (action === 'dst' && srcId) { setDst(ctxNodeId); doTrace(srcId, dstId); }
+  else if (action === 'mem') { setSrc(ctxNodeId); setDst('mc_0'); doTrace(srcId, 'mc_0'); }
+  else if (action === 'swap' && srcId && dstId) {
+    const s = srcId, d = dstId;
+    clearSel(); setSrc(d); setDst(s); doTrace(d, s);
+  }
+  else if (action === 'info') { showInfo(nodeMap[ctxNodeId]); showTab('info'); }
+}
+
+// 검색
+function searchDev(q) {
+  document.querySelectorAll('.htree-node').forEach(el => {
+    el.classList.remove('search-hl', 'search-dim');
+  });
+  if (!q) return;
+  q = q.toLowerCase();
+  document.querySelectorAll('.htree-node').forEach(el => {
+    const id = el.dataset.id || '';
+    const label = el.querySelector('.htree-label')?.textContent || '';
+    const match = label.toLowerCase().includes(q) || id.toLowerCase().includes(q);
+    el.classList.add(match ? 'search-hl' : 'search-dim');
+  });
+}
+
+// === Trace ===
 async function doTrace(sid, did) {
   const r = await fetch(`/api/trace?source=${sid}&destination=${did}`).then(r=>r.json());
+  lastTrace = r;
+
+  // 노드 하이라이트
+  clearHL();
+  hlNode(sid, 'src-sel');
+  hlNode(did, 'dst-sel');
   if (r.path?.length > 0) {
     r.path.forEach(nid => { if(nid!==sid&&nid!==did) hlNode(nid,'on-path'); });
+    // Edge 하이라이트
+    for (let i = 0; i < r.path.length - 1; i++) {
+      hlEdge(r.path[i], r.path[i+1], 'trace-hl');
+    }
   }
+
   hist.unshift({sn:r.source_name,dn:r.destination_name,bw:r.e2e_bandwidth_gbps,lat:r.e2e_latency_ns,sid,did,r});
   if(hist.length>10) hist.pop();
   renderTrace(r); showTab('trace');
-  document.getElementById('bclear').style.display='inline';
 }
 
 function renderTrace(r) {
@@ -323,11 +363,11 @@ function renderTrace(r) {
   h+='<div class="section"><div class="stitle">Path</div>';
   for(let i=0;i<r.segments.length;i++){
     const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
-    if(i===0)h+=`<div class="pnode src">${s.from_name}</div>`;
+    if(i===0)h+=`<div class="pnode src" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">${s.from_name}</div>`;
     const lt=(s.link_type||'').includes('pcie')?'PCIe':(s.link_type||'').includes('memory')?'DDR':'→';
     const bw=s.effective_bw_gbps?` ${s.effective_bw_gbps}/${s.theoretical_bw_gbps} GB/s`:'';
     h+=`<div class="plink" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?'<span style="color:#e94560">◄ BN</span>':''}</div>`;
-    h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}">${s.to_name}</div>`;
+    h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">${s.to_name}</div>`;
   }
   h+='</div>';
 
@@ -343,27 +383,67 @@ function renderTrace(r) {
   setSB(h);
 }
 
-function hlSeg(i){
-  if(!hist.length)return;
-  const r=hist[0].r;
-  if(!r.path||i>=r.path.length-1)return;
-  hlNode(r.path[i],'on-path');hlNode(r.path[i+1],'on-path');
-  document.querySelectorAll('.tbl tr').forEach((tr,idx)=>{if(idx===i+1)tr.classList.add('hl');});
+// === Breakdown ↔ 트리 연동 ===
+function hlSeg(i) {
+  if (!lastTrace?.path || i >= lastTrace.path.length - 1) return;
+  const from = lastTrace.path[i], to = lastTrace.path[i+1];
+  // 노드 강조
+  hlNode(from, 'on-path'); hlNode(to, 'on-path');
+  // Edge 강조
+  hlEdge(from, to, 'seg-hl');
+  // 테이블 행 강조
+  document.querySelectorAll('.tbl tr').forEach((tr, idx) => { if(idx===i+1) tr.classList.add('hl'); });
 }
-function unhlSeg(){
-  document.querySelectorAll('.htree-node.on-path').forEach(el=>{
-    if(!el.classList.contains('src-sel')&&!el.classList.contains('dst-sel')) el.classList.remove('on-path');
+
+function unhlSeg() {
+  // seg-hl 제거
+  document.querySelectorAll('.htree-hline.seg-hl').forEach(el => el.classList.remove('seg-hl'));
+  document.querySelectorAll('.tbl tr.hl').forEach(tr => tr.classList.remove('hl'));
+  // on-path 복원
+  document.querySelectorAll('.htree-node.on-path').forEach(el => {
+    if (!el.classList.contains('src-sel') && !el.classList.contains('dst-sel')) el.classList.remove('on-path');
   });
-  document.querySelectorAll('.tbl tr.hl').forEach(tr=>tr.classList.remove('hl'));
-  // re-apply trace path highlights
-  if(hist.length&&hist[0].r.path){
-    hist[0].r.path.forEach(nid=>{
-      if(nid!==srcId&&nid!==dstId) hlNode(nid,'on-path');
-    });
+  if (lastTrace?.path) {
+    lastTrace.path.forEach(nid => { if(nid!==srcId&&nid!==dstId) hlNode(nid,'on-path'); });
   }
 }
 
-function showInfo(d){
+// === 노드/Edge 하이라이트 ===
+function hlNode(id, cls) {
+  const el = document.getElementById('n_'+esc(id));
+  if (el) el.classList.add(cls);
+}
+
+function hlEdge(fromId, toId, cls) {
+  // 양방향 체크
+  let el = document.getElementById(`e_${esc(fromId)}_${esc(toId)}`);
+  if (!el) el = document.getElementById(`e_${esc(toId)}_${esc(fromId)}`);
+  if (el) el.classList.add(cls);
+}
+
+function clearHL() {
+  document.querySelectorAll('.htree-node').forEach(el => el.classList.remove('src-sel','dst-sel','on-path'));
+  document.querySelectorAll('.htree-hline').forEach(el => el.classList.remove('trace-hl','seg-hl'));
+}
+
+function clearSel() {
+  srcId=null; dstId=null; lastTrace=null;
+  clearHL(); updSel();
+  document.getElementById('bclear').style.display='none';
+}
+
+function updSel() {
+  const bar=document.getElementById('sel-bar'), txt=document.getElementById('sel-text');
+  if(!srcId) { bar.style.display='none'; return; }
+  bar.style.display='block';
+  const sn=nodeMap[srcId]?.label||srcId;
+  if(!dstId) txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">SRC: ${sn}</span> <span style="color:#666">→ click destination...</span>`;
+  else { const dn=nodeMap[dstId]?.label||dstId; txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">${sn}</span> <span style="color:#666">→</span> <span style="color:#f59e0b;font-weight:bold">${dn}</span>`; }
+}
+
+// === Sidebar ===
+function showInfo(d) {
+  if(!d) return;
   let h=`<div class="section"><div class="stitle">${d.label||d.id}</div>`;
   for(const[k,v]of Object.entries(d)){
     if(['id','label','source','target','parent'].includes(k))continue;
@@ -376,29 +456,20 @@ function showInfo(d){
 function showHistory(){
   if(!hist.length){setSB('<div class="empty">No history</div>');return;}
   let h='<div class="section"><div class="stitle">History</div>';
-  hist.forEach((t,i)=>{h+=`<div class="hist" onclick="replay(${i})"><span>${t.sn}→${t.dn}</span><span style="color:#06b6d4">${t.bw}GB/s·${t.lat}ns</span></div>`;});
+  hist.forEach((t,i)=>{h+=`<div class="hist" onclick="replay(${i})"><span>${t.sn} → ${t.dn}</span><span style="color:#06b6d4">${t.bw} GB/s · ${t.lat}ns</span></div>`;});
   h+='</div>';setSB(h);
 }
 
 function replay(i){
   const t=hist[i]; clearSel();
-  srcId=t.sid;dstId=t.did; hlNode(t.sid,'src-sel');hlNode(t.did,'dst-sel');
-  if(t.r.path) t.r.path.forEach(nid=>{if(nid!==t.sid&&nid!==t.did)hlNode(nid,'on-path');});
-  updSel();renderTrace(t.r);showTab('trace');
+  srcId=t.sid; dstId=t.did; lastTrace=t.r;
+  hlNode(t.sid,'src-sel'); hlNode(t.did,'dst-sel');
+  if(t.r.path) {
+    t.r.path.forEach(nid=>{if(nid!==t.sid&&nid!==t.did)hlNode(nid,'on-path');});
+    for(let j=0;j<t.r.path.length-1;j++) hlEdge(t.r.path[j],t.r.path[j+1],'trace-hl');
+  }
+  updSel(); renderTrace(t.r); showTab('trace');
   document.getElementById('bclear').style.display='inline';
-}
-
-function hlNode(id,cls){const el=document.getElementById('n_'+id.replace(/[:.]/g,'_'));if(el)el.classList.add(cls);}
-function clearHL(){document.querySelectorAll('.htree-node').forEach(el=>el.classList.remove('src-sel','dst-sel','on-path'));}
-function clearSel(){srcId=null;dstId=null;clearHL();updSel();document.getElementById('bclear').style.display='none';}
-
-function updSel(){
-  const bar=document.getElementById('sel-bar'),txt=document.getElementById('sel-text');
-  if(!srcId){bar.style.display='none';return;}
-  bar.style.display='block';
-  const sn=graph.nodes.find(n=>n.data.id===srcId)?.data.label||srcId;
-  if(!dstId)txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">SRC:${sn}</span> <span style="color:#666">→ click dest...</span>`;
-  else{const dn=graph.nodes.find(n=>n.data.id===dstId)?.data.label||dstId;txt.innerHTML=`<span style="color:#22c55e;font-weight:bold">${sn}</span><span style="color:#666">→</span><span style="color:#f59e0b;font-weight:bold">${dn}</span>`;}
 }
 
 function showTab(t){
@@ -408,38 +479,12 @@ function showTab(t){
 }
 function setSB(h){document.getElementById('sb').innerHTML=h;}
 
-// Zoom
-let zoomScale = 1;
-function setZoom(s) {
-  zoomScale = Math.max(0.2, Math.min(2, s));
-  const el = document.getElementById('tree-content');
-  el.style.transform = `scale(${zoomScale})`;
-  document.getElementById('zoom-level').textContent = `${Math.round(zoomScale*100)}%`;
-}
-function zoomIn() { setZoom(zoomScale + 0.1); }
-function zoomOut() { setZoom(zoomScale - 0.1); }
-function zoomFit() {
-  const panel = document.getElementById('tree-panel');
-  const content = document.getElementById('tree-content');
-  if (!content.firstChild) return;
-  // 임시로 scale 1로 측정
-  content.style.transform = 'scale(1)';
-  const cw = content.scrollWidth;
-  const ch = content.scrollHeight;
-  const pw = panel.clientWidth - 40;
-  const ph = panel.clientHeight - 40;
-  const s = Math.min(pw / cw, ph / ch, 1);
-  setZoom(s);
-}
-
-// 마우스 휠 줌
-document.getElementById('tree-panel').addEventListener('wheel', function(e) {
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.05 : 0.05;
-    setZoom(zoomScale + delta);
-  }
-}, {passive: false});
+// === Zoom ===
+let zoomScale=1;
+function setZoom(s){ zoomScale=Math.max(0.2,Math.min(2,s)); document.getElementById('tree-content').style.transform=`scale(${zoomScale})`; document.getElementById('zoom-level').textContent=`${Math.round(zoomScale*100)}%`; }
+function zoomIn(){setZoom(zoomScale+0.1);} function zoomOut(){setZoom(zoomScale-0.1);}
+function zoomFit(){ const p=document.getElementById('tree-panel'),c=document.getElementById('tree-content'); if(!c.firstChild)return; c.style.transform='scale(1)'; const s=Math.min((p.clientWidth-40)/c.scrollWidth,(p.clientHeight-40)/c.scrollHeight,1); setZoom(s); }
+document.getElementById('tree-panel').addEventListener('wheel',function(e){if(e.ctrlKey||e.metaKey){e.preventDefault();setZoom(zoomScale+(e.deltaY>0?-0.05:0.05));}},{passive:false});
 
 init();
 </script>
