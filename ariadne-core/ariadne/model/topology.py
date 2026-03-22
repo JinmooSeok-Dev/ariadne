@@ -12,9 +12,17 @@ from ariadne.model.types import (
   LinkType,
   SystemTopology,
 )
+from ariadne.model.types import PCIDevice
 from ariadne.collector.numa import collect_numa_nodes
 from ariadne.collector.cpu import collect_cpu_cores, collect_caches
 from ariadne.collector.memory import collect_total_memory, collect_dimm_info
+from ariadne.collector.pcie import (
+  collect_pci_devices,
+  calc_pcie_bandwidth,
+  get_pcie_gen,
+  get_short_vendor_name,
+)
+from ariadne.collector.iommu import collect_iommu_groups
 
 
 def build_topology() -> SystemTopology:
@@ -30,6 +38,33 @@ def build_topology() -> SystemTopology:
     if total > 0:
       from ariadne.model.types import MemoryInfo
       topo.memory = [MemoryInfo(total_mb=total)]
+
+  raw_pci = collect_pci_devices()
+  topo.pci_devices = [
+    PCIDevice(
+      bdf=d["bdf"],
+      class_code=d["class_code"],
+      vendor=d["vendor"],
+      device_id=d["device_id"],
+      numa_node=d["numa_node"],
+      current_link_speed=d["current_link_speed"],
+      current_link_width=d["current_link_width"],
+      max_link_speed=d["max_link_speed"],
+      max_link_width=d["max_link_width"],
+      iommu_group=d["iommu_group"],
+      sriov_totalvfs=d["sriov_totalvfs"],
+      sriov_numvfs=d["sriov_numvfs"],
+      is_vf=d["is_vf"],
+      reset_method=d["reset_method"],
+      bars=d["bars"],
+      parent_bdf=d["parent_bdf"],
+      component_type=d["component_type"].value,
+      type_name=d["type_name"],
+      vendor_name=get_short_vendor_name(d["vendor"]),
+    )
+    for d in raw_pci
+  ]
+  topo.iommu_groups = collect_iommu_groups()
 
   _build_components_and_links(topo)
   return topo
@@ -147,8 +182,140 @@ def _build_components_and_links(topo: SystemTopology) -> None:
           attrs={"distance": dist},
         ))
 
+  _build_pcie_components(topo, components, links)
+
   topo.components = components
   topo.links = links
+
+
+def _build_pcie_components(
+  topo: SystemTopology,
+  components: list[Component],
+  links: list[Link],
+) -> None:
+  """PCIe 디바이스를 Component/Link에 추가."""
+  if not topo.pci_devices:
+    return
+
+  host_bridges = [d for d in topo.pci_devices if d.type_name == "Host Bridge"]
+  bridges = [d for d in topo.pci_devices if d.type_name == "PCI-to-PCI Bridge"]
+  endpoints = [d for d in topo.pci_devices if d.type_name not in ("Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge", "SMBus Controller")]
+
+  for hb in host_bridges:
+    rc_id = f"pcie_rc_{hb.bdf}"
+    components.append(Component(
+      id=rc_id,
+      type=ComponentType.PCIE_ROOT_COMPLEX,
+      name="PCIe Root Complex",
+      attrs={"bdf": hb.bdf},
+    ))
+    numa = _resolve_numa_node(topo, hb.numa_node)
+    if numa is not None:
+      links.append(Link(source=f"numa_{numa}", target=rc_id, type=LinkType.INTERNAL))
+
+  for br in bridges:
+    rp_id = f"pcie_rp_{br.bdf}"
+    components.append(Component(
+      id=rp_id,
+      type=ComponentType.PCIE_ROOT_PORT,
+      name=f"Root Port {br.bdf}",
+      attrs={"bdf": br.bdf},
+    ))
+    if br.parent_bdf:
+      parent_comp = _find_pcie_component_id(br.parent_bdf, host_bridges, bridges)
+    else:
+      parent_comp = f"pcie_rc_{host_bridges[0].bdf}" if host_bridges else None
+    if parent_comp:
+      links.append(Link(source=parent_comp, target=rp_id, type=LinkType.INTERNAL))
+
+  for ep in endpoints:
+    comp_type = ComponentType(ep.component_type) if ep.component_type else ComponentType.PCIE_ENDPOINT
+    bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
+    gen = get_pcie_gen(ep.current_link_speed)
+    width_str = f"x{ep.current_link_width}" if ep.current_link_width else ""
+    link_str = f"{gen} {width_str}".strip()
+
+    bar_summary = _summarize_bars(ep.bars)
+
+    name_parts = [ep.vendor_name, ep.type_name]
+    name = " ".join(p for p in name_parts if p)
+
+    ep_id = f"pcie_{ep.bdf}"
+    attrs: dict = {
+      "bdf": ep.bdf,
+      "vendor": ep.vendor,
+      "device_id": ep.device_id,
+      "vendor_name": ep.vendor_name,
+      "type_name": ep.type_name,
+      "link": link_str,
+      "iommu_group": ep.iommu_group,
+    }
+    if bw > 0:
+      attrs["bandwidth_gbps"] = bw
+    if bar_summary:
+      attrs["bars"] = bar_summary
+    if ep.sriov_totalvfs > 0:
+      attrs["sriov_totalvfs"] = ep.sriov_totalvfs
+      attrs["sriov_numvfs"] = ep.sriov_numvfs
+    if ep.is_vf:
+      attrs["is_vf"] = True
+    if ep.reset_method:
+      attrs["reset_method"] = ep.reset_method
+
+    components.append(Component(
+      id=ep_id,
+      type=comp_type,
+      name=name or ep.bdf,
+      attrs=attrs,
+    ))
+
+    parent_id = None
+    if ep.parent_bdf:
+      parent_id = _find_pcie_component_id(ep.parent_bdf, host_bridges, bridges)
+    if not parent_id and host_bridges:
+      parent_id = f"pcie_rc_{host_bridges[0].bdf}"
+
+    if parent_id:
+      links.append(Link(
+        source=parent_id,
+        target=ep_id,
+        type=LinkType.PCIE,
+        bandwidth_gbps=bw if bw > 0 else None,
+        attrs={"speed": ep.current_link_speed, "width": ep.current_link_width},
+      ))
+
+
+def _find_pcie_component_id(bdf: str, host_bridges: list, bridges: list) -> str | None:
+  for hb in host_bridges:
+    if hb.bdf == bdf:
+      return f"pcie_rc_{hb.bdf}"
+  for br in bridges:
+    if br.bdf == bdf:
+      return f"pcie_rp_{br.bdf}"
+  return None
+
+
+def _resolve_numa_node(topo: SystemTopology, numa_node: int) -> int | None:
+  if numa_node >= 0:
+    return numa_node
+  if topo.numa_nodes:
+    return topo.numa_nodes[0].node_id
+  return None
+
+
+def _summarize_bars(bars: list[dict]) -> str:
+  if not bars:
+    return ""
+  parts = []
+  for bar in bars:
+    size = bar["size"]
+    if size >= 1 << 30:
+      parts.append(f"BAR{bar['index']}: {size >> 30}GB")
+    elif size >= 1 << 20:
+      parts.append(f"BAR{bar['index']}: {size >> 20}MB")
+    elif size >= 1 << 10:
+      parts.append(f"BAR{bar['index']}: {size >> 10}KB")
+  return ", ".join(parts)
 
 
 def _find_numa_for_socket(topo: SystemTopology, socket_id: int) -> int | None:

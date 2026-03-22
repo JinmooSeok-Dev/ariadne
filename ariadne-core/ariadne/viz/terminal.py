@@ -60,6 +60,8 @@ def render_topology(topo: SystemTopology) -> None:
       else:
         mc_tree.add(f"{mem_str}")
 
+    _render_pcie_tree(topo, node_tree, node.node_id)
+
   console.print(root)
   console.print()
 
@@ -86,6 +88,116 @@ def _render_distance_matrix(topo: SystemTopology) -> None:
     table.add_row(f"Node {node.node_id}", *row)
 
   console.print(table)
+
+
+TYPE_COLORS = {
+  "GPU": "green",
+  "VGA Controller": "green",
+  "NVMe Controller": "yellow",
+  "Ethernet Controller": "magenta",
+  "Audio Device": "dim",
+  "USB Controller": "dim",
+  "SATA Controller": "dim",
+  "Serial Bus Controller": "dim",
+  "Communication Controller": "dim",
+  "RAM Controller": "dim",
+}
+
+TYPE_ICONS = {
+  "GPU": "🎮",
+  "VGA Controller": "🖥️",
+  "NVMe Controller": "💾",
+  "Ethernet Controller": "🌐",
+}
+
+
+def _render_pcie_tree(topo: SystemTopology, parent_tree, numa_id: int) -> None:
+  """NUMA 노드에 연결된 PCIe 디바이스를 트리로 출력."""
+  if not topo.pci_devices:
+    return
+
+  rc_comp = None
+  for comp in topo.components:
+    if comp.type == ComponentType.PCIE_ROOT_COMPLEX:
+      rc_comp = comp
+      break
+
+  if not rc_comp:
+    return
+
+  rc_tree = parent_tree.add("[bold red]PCIe Root Complex[/]")
+
+  bridges = {d.bdf: d for d in topo.pci_devices if d.type_name == "PCI-to-PCI Bridge"}
+  endpoints = [d for d in topo.pci_devices
+               if d.type_name not in ("Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge",
+                                       "SMBus Controller", "Serial Bus Controller",
+                                       "Communication Controller", "RAM Controller")]
+
+  rendered_bridges = set()
+  for ep in endpoints:
+    parent_bdf = ep.parent_bdf
+    branch = rc_tree
+
+    if parent_bdf and parent_bdf in bridges:
+      br = bridges[parent_bdf]
+      if parent_bdf not in rendered_bridges:
+        rendered_bridges.add(parent_bdf)
+      gen = ""
+      if br.current_link_speed:
+        from ariadne.collector.pcie import get_pcie_gen
+        gen = get_pcie_gen(br.current_link_speed)
+      width = f"x{br.current_link_width}" if br.current_link_width else ""
+      br_label = f"[dim]Root Port {parent_bdf}[/]"
+      if gen or width:
+        br_label += f" [dim]({gen} {width})[/]"
+      branch = rc_tree.add(br_label)
+
+    _render_endpoint(branch, ep)
+
+
+def _render_endpoint(parent_tree, ep) -> None:
+  """단일 PCIe endpoint를 트리에 추가."""
+  from ariadne.collector.pcie import calc_pcie_bandwidth, get_pcie_gen
+
+  color = TYPE_COLORS.get(ep.type_name, "white")
+  bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
+  gen = get_pcie_gen(ep.current_link_speed)
+  width = f"x{ep.current_link_width}" if ep.current_link_width else ""
+
+  label = f"[{color}]{ep.vendor_name} {ep.type_name}[/] [dim]{ep.bdf}[/]"
+
+  ep_tree = parent_tree.add(label)
+
+  if gen or width:
+    bw_str = f" — {bw} GB/s" if bw > 0 else ""
+    max_gen = get_pcie_gen(ep.max_link_speed) if ep.max_link_speed else ""
+    max_width = f"x{ep.max_link_width}" if ep.max_link_width else ""
+    cur_str = f"{gen} {width}".strip()
+    max_str = f"{max_gen} {max_width}".strip()
+    if max_str and max_str != cur_str:
+      ep_tree.add(f"[dim]{cur_str}{bw_str} (max: {max_str})[/]")
+    else:
+      ep_tree.add(f"[dim]{cur_str}{bw_str}[/]")
+
+  if ep.bars:
+    bar_parts = []
+    for bar in ep.bars:
+      size = bar["size"]
+      if size >= 1 << 30:
+        bar_parts.append(f"BAR{bar['index']}: {size >> 30}GB")
+      elif size >= 1 << 20:
+        bar_parts.append(f"BAR{bar['index']}: {size >> 20}MB")
+    if bar_parts:
+      ep_tree.add(f"[dim]{', '.join(bar_parts)}[/]")
+
+  if ep.iommu_group >= 0:
+    ep_tree.add(f"[dim]IOMMU Group: {ep.iommu_group}[/]")
+
+  if ep.sriov_totalvfs > 0:
+    ep_tree.add(f"[dim]SR-IOV: {ep.sriov_numvfs}/{ep.sriov_totalvfs} VFs[/]")
+
+  if ep.is_vf:
+    ep_tree.add(f"[dim]Virtual Function[/]")
 
 
 def _sockets_for_node(topo: SystemTopology, node_id: int) -> list[int]:

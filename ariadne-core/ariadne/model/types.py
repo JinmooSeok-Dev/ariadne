@@ -82,11 +82,35 @@ class MemoryInfo(BaseModel):
   theoretical_bw_gbps: float = 0.0
 
 
+class PCIDevice(BaseModel):
+  bdf: str
+  class_code: int = 0
+  vendor: int = 0
+  device_id: int = 0
+  numa_node: int = -1
+  current_link_speed: str = ""
+  current_link_width: int = 0
+  max_link_speed: str = ""
+  max_link_width: int = 0
+  iommu_group: int = -1
+  sriov_totalvfs: int = 0
+  sriov_numvfs: int = 0
+  is_vf: bool = False
+  reset_method: str = ""
+  bars: list[dict] = []
+  parent_bdf: str = ""
+  component_type: str = ""
+  type_name: str = ""
+  vendor_name: str = ""
+
+
 class SystemTopology(BaseModel):
   hostname: str = ""
   numa_nodes: list[NUMANode] = []
   cpu_cores: list[CPUCore] = []
   caches: list[CacheInfo] = []
   memory: list[MemoryInfo] = []
+  pci_devices: list[PCIDevice] = []
+  iommu_groups: dict[int, list[str]] = {}
   components: list[Component] = []
   links: list[Link] = []
