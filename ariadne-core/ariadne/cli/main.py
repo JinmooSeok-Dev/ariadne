@@ -15,7 +15,9 @@ console = Console()
 
 
 @app.command()
-def show():
+def show(
+  summary: bool = typer.Option(False, "--summary", "-s", help="디바이스를 타입별로 요약 표시"),
+):
   """현재 호스트의 시스템 토폴로지를 수집하고 터미널에 표시한다."""
   from ariadne.model.topology import build_topology
   from ariadne.viz.terminal import render_topology
@@ -23,7 +25,7 @@ def show():
   console.print("[dim]Collecting system topology...[/]")
   topo = build_topology()
   console.print()
-  render_topology(topo)
+  render_topology(topo, summary=summary)
 
 
 @app.command()

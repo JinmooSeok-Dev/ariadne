@@ -11,8 +11,11 @@ from ariadne.analyzer.trace import TraceResult
 console = Console()
 
 
-def render_topology(topo: SystemTopology) -> None:
+def render_topology(topo: SystemTopology, summary: bool = False) -> None:
   """토폴로지를 Rich 트리로 터미널에 출력한다."""
+  if summary and topo.pci_devices:
+    _render_summary(topo)
+    return
   root = Tree(f"[bold cyan]{topo.hostname}[/]")
 
   for node in topo.numa_nodes:
@@ -199,6 +202,133 @@ def _render_endpoint(parent_tree, ep) -> None:
 
   if ep.is_vf:
     ep_tree.add(f"[dim]Virtual Function[/]")
+
+
+def _render_summary(topo: SystemTopology) -> None:
+  """토폴로지를 타입별 요약으로 출력."""
+  from collections import defaultdict
+  from ariadne.collector.pcie import get_pcie_gen, calc_pcie_bandwidth
+
+  root = Tree(f"[bold cyan]{topo.hostname}[/]")
+
+  for node in topo.numa_nodes:
+    mem_str = _format_memory(node.memory_mb)
+    node_tree = root.add(
+      f"[bold yellow]NUMA Node {node.node_id}[/] ({mem_str}, {len(node.cpu_list)} CPUs)"
+    )
+
+    socket_ids = _sockets_for_node(topo, node.node_id)
+    for sid in socket_ids:
+      cores = [c for c in topo.cpu_cores if c.physical_package_id == sid]
+      p_cores = [c for c in cores if len(c.thread_siblings) > 1]
+      e_cores = [c for c in cores if len(c.thread_siblings) == 1]
+      parts = []
+      if p_cores:
+        parts.append(f"{len(p_cores)}P")
+      if e_cores:
+        parts.append(f"{len(e_cores)}E")
+      core_str = "+".join(parts) if parts else f"{len(cores)}"
+
+      l3 = _l3_for_socket(topo, sid)
+      l3_str = f", L3 {l3.size_kb // 1024}MB" if l3 else ""
+      node_tree.add(f"[bold green]Socket {sid}[/] ({core_str} cores{l3_str})")
+
+    mc_tree = node_tree.add(f"[bold blue]Memory Controller[/]")
+    if topo.memory:
+      mem = topo.memory[0]
+      if mem.speed_mhz:
+        ch = mem.channels // max(len(topo.numa_nodes), 1)
+        bw = mem.theoretical_bw_gbps / max(len(topo.numa_nodes), 1)
+        mc_tree.add(f"{mem.type}-{mem.speed_mhz} × {ch}ch ({bw:.1f} GB/s)")
+      else:
+        mc_tree.add(mem_str)
+
+    skip = {"Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge", "SMBus Controller",
+            "Serial Bus Controller", "Communication Controller", "RAM Controller"}
+    devices = [d for d in topo.pci_devices if d.type_name not in skip]
+
+    groups: dict[str, list] = defaultdict(list)
+    for dev in devices:
+      key = f"{dev.vendor_name}|{dev.type_name}"
+      groups[key].append(dev)
+
+    if groups:
+      pcie_tree = node_tree.add("[bold red]PCIe Root Complex[/]")
+
+      type_order = ["VGA Controller", "NPU", "NVMe Controller", "Ethernet Controller"]
+      sorted_keys = sorted(groups.keys(), key=lambda k: next(
+        (i for i, t in enumerate(type_order) if t in k), 99
+      ))
+
+      for key in sorted_keys:
+        devs = groups[key]
+        vendor, type_name = key.split("|", 1)
+        color = TYPE_COLORS.get(type_name, "cyan" if type_name.startswith("NPU") else "white")
+        short = _summary_short_type(type_name)
+
+        sample = devs[0]
+        gen = get_pcie_gen(sample.max_link_speed or sample.current_link_speed) if sample.max_link_speed or sample.current_link_speed else ""
+        width = f"x{sample.max_link_width or sample.current_link_width}" if (sample.max_link_width or sample.current_link_width) else ""
+        link_str = f"{gen} {width}".strip()
+
+        iommu_ids = sorted(set(d.iommu_group for d in devs if d.iommu_group >= 0))
+        iommu_str = _compact_ranges(iommu_ids) if iommu_ids else ""
+
+        vf_count = sum(1 for d in devs if d.is_vf)
+        pf_count = len(devs) - vf_count
+        sriov_total = sum(d.sriov_totalvfs for d in devs if d.sriov_totalvfs > 0)
+
+        count_str = f"× {pf_count}"
+        if vf_count > 0:
+          count_str += f" (+{vf_count} VFs)"
+
+        parts = [f"[{color}]{short} {count_str}[/]", f"[dim][{vendor}][/]"]
+        if link_str:
+          parts.append(f"[dim]{link_str}[/]")
+        if iommu_str:
+          parts.append(f"[dim]IOMMU: {iommu_str}[/]")
+        if sriov_total > 0:
+          parts.append(f"[dim]SR-IOV: {sriov_total} max VFs[/]")
+
+        pcie_tree.add("  ".join(parts))
+
+  console.print(root)
+  console.print()
+
+  if len(topo.numa_nodes) > 1:
+    _render_distance_matrix(topo)
+
+
+def _summary_short_type(type_name: str) -> str:
+  mapping = {
+    "VGA Controller": "GPU",
+    "NVMe Controller": "NVMe",
+    "Ethernet Controller": "NIC",
+    "Audio Device": "Audio",
+    "USB Controller": "USB",
+    "SATA Controller": "SATA",
+    "Processing Accelerator": "NPU",
+  }
+  if type_name.startswith("NPU"):
+    return "NPU"
+  return mapping.get(type_name, type_name)
+
+
+def _compact_ranges(nums: list[int]) -> str:
+  """[1,2,3,5,7,8,9] → '1-3,5,7-9'"""
+  if not nums:
+    return ""
+  ranges = []
+  start = nums[0]
+  end = nums[0]
+  for n in nums[1:]:
+    if n == end + 1:
+      end = n
+    else:
+      ranges.append(f"{start}" if start == end else f"{start}-{end}")
+      start = end = n
+  ranges.append(f"{start}" if start == end else f"{start}-{end}")
+  return ",".join(ranges)
 
 
 def render_trace(result: TraceResult) -> None:
