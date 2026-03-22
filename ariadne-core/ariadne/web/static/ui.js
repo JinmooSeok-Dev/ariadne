@@ -266,6 +266,29 @@ function showInfo(d) {
     h += `<div class="field"><span class="flabel">${k}</span><br><span class="fval">${typeof v === 'object' ? JSON.stringify(v) : v}</span></div>`;
   }
   h += '</div>';
+
+  // NUMA distance matrix (멀티 NUMA일 때)
+  if (d.type === 'numa_node' && App.graph.numa_distances) {
+    const dist = App.graph.numa_distances;
+    const nodeIds = Object.keys(dist).sort((a, b) => a - b);
+    if (nodeIds.length > 1) {
+      h += '<div class="section"><div class="stitle">NUMA Distance Matrix</div>';
+      h += '<table class="tbl"><tr><th></th>';
+      nodeIds.forEach(n => { h += `<th>N${n}</th>`; });
+      h += '</tr>';
+      nodeIds.forEach(row => {
+        h += `<tr><td><b>N${row}</b></td>`;
+        nodeIds.forEach(col => {
+          const d = dist[row]?.[col] ?? '-';
+          const color = row === col ? 'var(--color-source)' : (d <= 20 ? 'var(--color-dest)' : 'var(--color-accent)');
+          h += `<td style="color:${color};text-align:center">${d}</td>`;
+        });
+        h += '</tr>';
+      });
+      h += '</table></div>';
+    }
+  }
+
   setSB(h);
 }
 
