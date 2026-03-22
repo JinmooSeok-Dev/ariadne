@@ -98,6 +98,10 @@
     .card-v { font-size:16px; font-weight:bold; color:#06b6d4; }
     .pnode { font-size:10px; padding:4px 8px; background:#0f0f1a; border-left:3px solid #444; border-radius:0 3px 3px 0; margin:1px 0; cursor:pointer; }
     .pnode:hover { background:#1a1a2e; }
+    .pnode.hl { background:#06b6d422; border-left-color:#06b6d4 !important; }
+    .plink.hl { background:#06b6d418; color:#06b6d4; }
+    .tbl tr.hl { background:#06b6d418 !important; }
+    .tbl tr.hl td { color:#06b6d4 !important; }
     .pnode.src { border-left-color:#22c55e; }
     .pnode.dst { border-left-color:#f59e0b; }
     .plink { font-size:9px; color:#777; padding:1px 0 1px 14px; border-left:1px dashed #333; margin-left:4px; cursor:pointer; }
@@ -106,7 +110,6 @@
     .tbl th { color:#666; font-size:8px; text-transform:uppercase; padding:3px 4px; text-align:left; border-bottom:1px solid #333; }
     .tbl td { padding:3px 4px; border-bottom:1px solid #1a1a2e; }
     .tbl tr:hover { background:rgba(233,69,96,0.08); cursor:pointer; }
-    .tbl tr.hl { background:rgba(255,255,255,0.06); }
     .hist { padding:6px 8px; border-radius:3px; font-size:10px; cursor:pointer; margin:2px 0; display:flex; justify-content:space-between; background:#0f0f1a; border-left:3px solid #333; }
     .hist:hover { border-left-color:#e94560; background:#1a1a2e; }
     #sel-bar { position:fixed; top:48px; left:50%; transform:translateX(-50%); background:rgba(20,20,40,0.95); padding:6px 14px; border-radius:6px; font-size:12px; z-index:5; display:none; }
@@ -311,8 +314,13 @@ function drawEdges() {
     // Edge 그룹 (path + label)
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'edge-group');
+    g.setAttribute('data-source', e.data.source);
+    g.setAttribute('data-target', e.data.target);
     g.style.cursor = 'pointer';
     g.addEventListener('click', () => showEdgeDetail(eId));
+    // 트리 edge hover → Breakdown 행 하이라이트
+    g.addEventListener('mouseenter', () => hlSegFromEdge(e.data.source, e.data.target));
+    g.addEventListener('mouseleave', () => unhlSeg());
 
     // 투명 히트 영역
     const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -500,11 +508,11 @@ function renderTrace(r) {
   h+='<div class="section"><div class="stitle">Path</div>';
   for(let i=0;i<r.segments.length;i++){
     const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
-    if(i===0)h+=`<div class="pnode src" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">${s.from_name}</div>`;
+    if(i===0)h+=`<div class="pnode src">${s.from_name}</div>`;
     const lt=(s.link_type||'').includes('pcie')?'PCIe':(s.link_type||'').includes('memory')?'DDR':'→';
     const bw=s.effective_bw_gbps?` ${s.effective_bw_gbps}/${s.theoretical_bw_gbps} GB/s`:'';
-    h+=`<div class="plink" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?'<span style="color:#e94560">◄ BN</span>':''}</div>`;
-    h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">${s.to_name}</div>`;
+    h+=`<div class="plink" data-seg="${i}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns${bw} ${bn?'<span style="color:#e94560">◄ BN</span>':''}</div>`;
+    h+=`<div class="pnode ${i===r.segments.length-1?'dst':''}" data-seg="${i}" onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})">${s.to_name}</div>`;
   }
   h+='</div>';
 
@@ -512,7 +520,7 @@ function renderTrace(r) {
   h+='<table class="tbl"><tr><th>#</th><th>Segment</th><th>Theo</th><th>Eff</th><th>Lat</th></tr>';
   for(let i=0;i<r.segments.length;i++){
     const s=r.segments[i], bn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
-    h+=`<tr ${bn?'style="color:#e94560"':''} onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()">`;
+    h+=`<tr data-seg="${i}" ${bn?'style="color:#e94560"':''} onmouseenter="hlSeg(${i})" onmouseleave="unhlSeg()" onclick="scrollToSeg(${i})">`;
     h+=`<td>${i+1}</td><td>${s.from_name}→${s.to_name}</td><td>${s.theoretical_bw_gbps||'-'}</td><td>${s.effective_bw_gbps||'-'}</td><td>${s.latency_ns}ns</td></tr>`;
   }
   h+=`<tr style="border-top:2px solid #333"><td></td><td><b>E2E</b></td><td></td><td><b>${r.e2e_bandwidth_gbps}</b></td><td><b>${r.e2e_latency_ns}ns</b></td></tr>`;
@@ -520,20 +528,35 @@ function renderTrace(r) {
   setSB(h);
 }
 
-// === Breakdown ↔ 트리 연동 ===
+// === Breakdown ↔ 트리 양방향 연동 ===
+
+// Sidebar → 트리: segment index로 하이라이트
 function hlSeg(i) {
   if (!lastTrace?.path || i >= lastTrace.path.length - 1) return;
   const from = lastTrace.path[i], to = lastTrace.path[i+1];
-  // 노드 강조
   hlNode(from, 'on-path'); hlNode(to, 'on-path');
-  // Edge 강조
   hlEdge(from, to, 'seg-hl');
-  // 테이블 행 강조
-  document.querySelectorAll('.tbl tr').forEach((tr, idx) => { if(idx===i+1) tr.classList.add('hl'); });
+  // Breakdown 행 + Path 항목 동시 강조
+  document.querySelectorAll('[data-seg]').forEach(el => {
+    if (parseInt(el.dataset.seg) === i) el.classList.add('hl');
+  });
+}
+
+// 트리 edge hover → Sidebar: source/target으로 segment 찾아서 하이라이트
+function hlSegFromEdge(source, target) {
+  if (!lastTrace?.path) return;
+  for (let i = 0; i < lastTrace.path.length - 1; i++) {
+    const a = lastTrace.path[i], b = lastTrace.path[i+1];
+    if ((a === source && b === target) || (a === target && b === source)) {
+      hlSeg(i);
+      return;
+    }
+  }
 }
 
 function unhlSeg() {
   document.querySelectorAll('.seg-hl').forEach(el => el.classList.remove('seg-hl'));
+  document.querySelectorAll('[data-seg].hl').forEach(el => el.classList.remove('hl'));
   document.querySelectorAll('.tbl tr.hl').forEach(el => el.classList.remove('hl'));
   // on-path 복원
   document.querySelectorAll('.htree-node.on-path').forEach(el => {
@@ -541,6 +564,16 @@ function unhlSeg() {
   });
   if (lastTrace?.path) {
     lastTrace.path.forEach(nid => { if(nid!==srcId&&nid!==dstId) hlNode(nid,'on-path'); });
+  }
+}
+
+// Breakdown 행 클릭 → 해당 edge 위치로 스크롤
+function scrollToSeg(i) {
+  if (!lastTrace?.path || i >= lastTrace.path.length - 1) return;
+  const from = lastTrace.path[i];
+  const nodeEl = document.getElementById('n_' + esc(from));
+  if (nodeEl) {
+    nodeEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
   }
 }
 
