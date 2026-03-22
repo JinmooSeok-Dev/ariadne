@@ -57,8 +57,22 @@
       display: none;
       max-height: 45vh;
       overflow-y: auto;
+      z-index: 20;
     }
     #trace-panel.active { display: block; }
+    #trace-close {
+      position: absolute;
+      top: 8px; right: 16px;
+      background: #333;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      z-index: 21;
+    }
+    #trace-close:hover { background: #e94560; color: white; }
 
     .trace-header {
       display: flex;
@@ -161,15 +175,16 @@
     #selection-bar .src-badge { color: #22c55e; font-weight: bold; }
     #selection-bar .dest-badge { color: #f59e0b; font-weight: bold; }
     #selection-bar button {
-      padding: 3px 10px;
-      background: #333;
-      color: #ccc;
-      border: 1px solid #555;
-      border-radius: 3px;
+      padding: 4px 14px;
+      background: #e94560;
+      color: white;
+      border: none;
+      border-radius: 4px;
       cursor: pointer;
       font-size: 11px;
+      font-weight: bold;
     }
-    #selection-bar button:hover { background: #444; }
+    #selection-bar button:hover { background: #c73e54; }
 
     .tooltip {
       position: absolute;
@@ -577,7 +592,8 @@
         : '<span style="color:#f59e0b;">⚠️ cross-NUMA</span>';
       const maxBw = Math.max(...result.segments.map(s => s.theoretical_bw_gbps || 0), 1);
 
-      let html = `<div class="trace-header">
+      let html = `<button id="trace-close" onclick="clearAll()">✕ Close & Reset</button>`;
+      html += `<div class="trace-header">
         <h3>${result.source_name} → ${result.destination_name}</h3>
         <div class="trace-summary">
           <div class="summary-card"><div class="card-label">E2E Bandwidth</div><div class="card-value">${result.e2e_bandwidth_gbps} GB/s</div></div>
