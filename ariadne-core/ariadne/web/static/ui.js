@@ -95,6 +95,7 @@ function applyTrace(r, sid, did) {
     }
   }
   updSel();
+  showSidebar();
   renderTrace(r);
   showTab('trace');
   document.getElementById('bclear').classList.remove('hidden');
@@ -213,7 +214,49 @@ function updSel() {
   }
 }
 
-// === Sidebar ===
+// === Sidebar toggle / resize ===
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  const toggle = document.getElementById('sb-toggle');
+  sb.classList.toggle('collapsed');
+  toggle.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
+}
+
+function showSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (sb.classList.contains('collapsed')) toggleSidebar();
+}
+
+// 드래그 리사이즈
+(function initResize() {
+  const handle = document.getElementById('sb-resize');
+  const sidebar = document.getElementById('sidebar');
+  if (!handle || !sidebar) return;
+
+  let startX, startW;
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = sidebar.offsetWidth;
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  function onDrag(e) {
+    const w = startW - (e.clientX - startX);
+    sidebar.style.width = Math.max(250, Math.min(700, w)) + 'px';
+  }
+  function stopDrag() {
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+})();
+
+// === Sidebar content ===
 function showInfo(d) {
   if (!d) return;
   let h = `<div class="section"><div class="stitle">${d.label || d.id}</div>`;
