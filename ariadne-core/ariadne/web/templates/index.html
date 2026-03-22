@@ -139,6 +139,37 @@
 
     .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 3 !important; }
     .node-selected .node-rect { stroke: #e94560 !important; stroke-width: 3 !important; }
+    .node-source .node-rect { stroke: #22c55e !important; stroke-width: 3 !important; }
+    .node-dest .node-rect { stroke: #f59e0b !important; stroke-width: 3 !important; }
+    .node-not-traceable .node-rect { opacity: 0.5; cursor: default; }
+    .node-not-traceable .node-rect:hover { filter: none; }
+
+    #selection-bar {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26, 26, 46, 0.95);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    #selection-bar .src-badge { color: #22c55e; font-weight: bold; }
+    #selection-bar .dest-badge { color: #f59e0b; font-weight: bold; }
+    #selection-bar button {
+      padding: 3px 10px;
+      background: #333;
+      color: #ccc;
+      border: 1px solid #555;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    #selection-bar button:hover { background: #444; }
 
     .tooltip {
       position: absolute;
@@ -191,7 +222,10 @@
       <svg id="graph"></svg>
       <div id="legend"></div>
       <div class="tooltip" id="tooltip"></div>
-      <div id="instructions">Click node to inspect · Click two nodes to trace · Scroll to zoom · Drag to pan</div>
+      <div id="selection-bar">
+        <span id="sel-status">Click a device to start trace (GPU, NPU, NVMe, NIC, Memory)</span>
+        <button id="sel-clear" style="display:none" onclick="clearAll()">Clear (ESC)</button>
+      </div>
       <div id="trace-panel"></div>
     </div>
     <div id="sidebar"></div>
@@ -238,8 +272,12 @@
     const LAYER_GAP = 100;
     const NODE_GAP = 16;
 
+    const TRACEABLE_TYPES = new Set(['gpu', 'npu', 'nvme', 'nic', 'memory_controller', 'pcie_endpoint']);
+
     let graphData = null;
     let selectedNodes = [];
+    let currentNodeElements = null;
+    let currentLinkElements = null;
 
     async function loadTopology() {
       const resp = await fetch('/api/topology/graph');
@@ -392,15 +430,28 @@
           return LABELS[d.type] || '';
         });
 
+      nodeElements.classed('node-not-traceable', d => !TRACEABLE_TYPES.has(d.type));
+
+      currentNodeElements = nodeElements;
+      currentLinkElements = linkElements;
+
       nodeElements
         .on('click', (event, d) => {
           event.stopPropagation();
-          handleNodeClick(d, nodeElements, linkElements);
+          if (TRACEABLE_TYPES.has(d.type)) {
+            handleNodeClick(d, nodeElements, linkElements);
+          } else {
+            showNodeInfo(d);
+          }
         })
         .on('mouseover', (event, d) => showTooltip(event, d))
         .on('mouseout', hideTooltip);
 
-      svg.on('click', () => clearSelection(nodeElements, linkElements));
+      svg.on('click', () => clearAll());
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') clearAll();
+      });
     }
 
     function _findParent(nodeId, links) {
@@ -426,15 +477,51 @@
     }
 
     function handleNodeClick(d, nodeSelection, linkSelection) {
-      selectedNodes.push(d);
-      if (selectedNodes.length === 1) {
+      if (selectedNodes.length === 0) {
+        selectedNodes = [d];
+        nodeSelection.classed('node-source', n => n.id === d.id);
+        nodeSelection.classed('node-dest', false);
+        linkSelection.classed('trace-path', false);
+        document.getElementById('trace-panel').classList.remove('active');
+        updateSelectionBar();
         showNodeInfo(d);
-        nodeSelection.classed('node-selected', n => n.id === d.id);
-      }
-      if (selectedNodes.length === 2) {
+      } else if (selectedNodes.length === 1) {
+        if (d.id === selectedNodes[0].id) return;
+        selectedNodes.push(d);
+        nodeSelection.classed('node-dest', n => n.id === d.id);
+        updateSelectionBar();
         tracePath(selectedNodes[0].id, selectedNodes[1].id, nodeSelection, linkSelection);
-        selectedNodes = [];
       }
+    }
+
+    function updateSelectionBar() {
+      const status = document.getElementById('sel-status');
+      const clearBtn = document.getElementById('sel-clear');
+      if (selectedNodes.length === 0) {
+        status.innerHTML = 'Click a device to start trace (GPU, NPU, NVMe, NIC, Memory)';
+        clearBtn.style.display = 'none';
+      } else if (selectedNodes.length === 1) {
+        status.innerHTML = `<span class="src-badge">SRC: ${selectedNodes[0].name}</span> → <span style="color:#888">click destination...</span>`;
+        clearBtn.style.display = 'inline';
+      } else {
+        status.innerHTML = `<span class="src-badge">SRC: ${selectedNodes[0].name}</span> → <span class="dest-badge">DST: ${selectedNodes[1].name}</span>`;
+        clearBtn.style.display = 'inline';
+      }
+    }
+
+    function clearAll() {
+      selectedNodes = [];
+      if (currentNodeElements) {
+        currentNodeElements.classed('node-selected', false);
+        currentNodeElements.classed('node-source', false);
+        currentNodeElements.classed('node-dest', false);
+      }
+      if (currentLinkElements) {
+        currentLinkElements.classed('trace-path', false);
+      }
+      document.getElementById('sidebar').classList.remove('active');
+      document.getElementById('trace-panel').classList.remove('active');
+      updateSelectionBar();
     }
 
     async function tracePath(src, dst, nodeSelection, linkSelection) {
@@ -446,7 +533,9 @@
 
       if (result.path?.length > 1) {
         const pathSet = new Set(result.path);
-        nodeSelection.classed('node-selected', n => pathSet.has(n.id));
+        nodeSelection.classed('node-selected', n =>
+          pathSet.has(n.id) && n.id !== src && n.id !== dst
+        );
         const edges = new Set();
         for (let i = 0; i < result.path.length - 1; i++) {
           edges.add(`${result.path[i]}|${result.path[i+1]}`);
@@ -455,6 +544,7 @@
         linkSelection.classed('trace-path', l => edges.has(`${l.source}|${l.target}`) || edges.has(`${l.target}|${l.source}`));
       }
       showTraceResult(result);
+      document.getElementById('sidebar').classList.remove('active');
     }
 
     function showNodeInfo(d) {
@@ -551,13 +641,6 @@
       panel.innerHTML = html;
     }
 
-    function clearSelection(nodeSelection, linkSelection) {
-      selectedNodes = [];
-      nodeSelection.classed('node-selected', false);
-      linkSelection.classed('trace-path', false);
-      document.getElementById('sidebar').classList.remove('active');
-      document.getElementById('trace-panel').classList.remove('active');
-    }
 
     function showTooltip(event, d) {
       const t = document.getElementById('tooltip');
