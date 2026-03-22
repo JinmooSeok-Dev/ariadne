@@ -34,17 +34,17 @@
 
     .htree-dot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
     .htree-label { font-weight:500; }
-    .htree-badge { font-size:8px; color:#888; background:rgba(255,255,255,0.05); padding:0 4px; border-radius:3px; }
-    .htree-bw { font-size:8px; color:#06b6d4; }
-    .htree-iommu { font-size:8px; color:#f0c040; }
+    .htree-badge { font-size:8px; color:#ccc; background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; }
+    .htree-bw { font-size:8px; color:#22d3ee; font-weight:bold; }
+    .htree-iommu { font-size:8px; color:#fbbf24; font-weight:bold; }
 
     /* Parent → children 연결 */
-    .htree-connector { width:36px; border-top:2px solid #666; flex-shrink:0; }
+    .htree-connector { width:36px; border-top:2.5px solid #aaa; flex-shrink:0; }
 
     /* Children 컨테이너: 왼쪽 세로선 */
     .htree-children {
       display:flex; flex-direction:column;
-      border-left:2px solid #666;
+      border-left:2.5px solid #aaa;
       padding:4px 0;
       gap:2px;
     }
@@ -55,13 +55,13 @@
       padding:2px 0;
     }
     .htree-hline {
-      width:32px; border-top:2px solid #666; flex-shrink:0;
+      width:32px; border-top:2.5px solid #aaa; flex-shrink:0;
       position:relative;
     }
-    .htree-hline.pcie { border-color:#e94560; }
-    .htree-hline.internal { border-color:#666; border-top-style:dashed; }
+    .htree-hline.pcie { border-color:#ff6b81; border-top-width:3px; }
+    .htree-hline.internal { border-color:#aaa; border-top-style:dashed; }
     .htree-bw-label {
-      font-size:8px; color:#06b6d4; position:absolute;
+      font-size:8px; color:#22d3ee; font-weight:bold; position:absolute;
       top:-12px; left:4px; white-space:nowrap;
     }
 
@@ -98,7 +98,7 @@
     .hist:hover { border-left-color:#e94560; background:#1a1a2e; }
 
     #sel-bar { position:fixed; top:48px; left:50%; transform:translateX(-50%); background:rgba(20,20,40,0.95); padding:6px 14px; border-radius:6px; font-size:12px; z-index:5; display:none; }
-    .empty { color:#555; font-size:11px; padding:20px; text-align:center; line-height:1.8; }
+    .empty { color:#999; font-size:12px; padding:20px; text-align:center; line-height:1.8; }
   </style>
 </head>
 <body>
