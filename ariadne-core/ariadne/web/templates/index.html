@@ -49,17 +49,38 @@
     .htree-badge { font-size:8px; color:#ccc; background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; }
     .htree-bw { font-size:8px; color:#22d3ee; font-weight:bold; }
     .htree-iommu { font-size:8px; color:#fbbf24; font-weight:bold; }
-    .htree-children { display:flex; flex-direction:column; border-left:2.5px solid #aaa; padding:4px 0; gap:2px; }
+    .htree-children { display:flex; flex-direction:column; padding:2px 0; }
     .htree-children.folded { display:none; }
     .htree-connector { width:36px; border-top:2.5px solid #aaa; flex-shrink:0; }
     .htree-connector.folded { display:none; }
-    .htree-child { display:flex; align-items:center; padding:2px 0; }
-    .htree-hline { width:32px; border-top:2.5px solid #aaa; flex-shrink:0; position:relative; }
-    .htree-hline.pcie { border-color:#ff6b81; border-top-width:3px; }
-    .htree-hline.internal { border-color:#aaa; border-top-style:dashed; }
-    .htree-hline.trace-hl { border-color:#e94560 !important; border-top-width:4px !important; border-top-style:solid !important; }
-    .htree-hline.seg-hl { border-color:#fff !important; border-top-width:4px !important; border-top-style:solid !important; }
+    .htree-connector.trace-hl { border-top-color:#e94560 !important; border-top-width:4px !important; }
+    .htree-connector.seg-hl { border-top-color:#fff !important; border-top-width:4px !important; }
+
+    .htree-child { display:flex; align-items:flex-start; }
+
+    /* 개별 L-shape 커넥터: 세로 + 가로 */
+    .htree-elbow {
+      flex-shrink:0; width:32px; display:flex; flex-direction:column; align-items:flex-start;
+    }
+    .htree-elbow-v {
+      width:0; border-left:2.5px solid #aaa; flex-shrink:0;
+    }
+    .htree-elbow-v.pcie { border-left-color:#ff6b81; border-left-width:3px; }
+    .htree-elbow-v.internal { border-left-color:#aaa; border-left-style:dashed; }
+    .htree-elbow-v.trace-hl { border-left-color:#e94560 !important; border-left-width:4px !important; border-left-style:solid !important; }
+    .htree-elbow-v.seg-hl { border-left-color:#fff !important; border-left-width:4px !important; border-left-style:solid !important; }
+    /* 첫 번째 자식은 세로 부분 짧게, 마지막은 길게 → JS에서 height 조절 */
+    .htree-elbow-h {
+      width:100%; border-top:2.5px solid #aaa; position:relative;
+    }
+    .htree-elbow-h.pcie { border-top-color:#ff6b81; border-top-width:3px; }
+    .htree-elbow-h.internal { border-top-color:#aaa; border-top-style:dashed; }
+    .htree-elbow-h.trace-hl { border-top-color:#e94560 !important; border-top-width:4px !important; border-top-style:solid !important; }
+    .htree-elbow-h.seg-hl { border-top-color:#fff !important; border-top-width:4px !important; border-top-style:solid !important; }
+
     .htree-bw-label { font-size:8px; color:#22d3ee; font-weight:bold; position:absolute; top:-12px; left:4px; white-space:nowrap; }
+
+    .htree-child-content { display:flex; align-items:center; }
 
     /* Context menu */
     #ctx { position:absolute; background:#1a1a2e; border:1px solid #444; border-radius:6px; padding:4px 0; display:none; z-index:50; min-width:200px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
@@ -221,11 +242,18 @@ function buildNode(id) {
     kids.forEach((edge, idx) => {
       const lc = edge.type === 'internal' ? 'internal' : 'pcie';
       const eId = `e_${esc(edge.source)}_${esc(edge.target)}`;
+      // 세로 높이: 첫 child = 짧게(4px), 나머지 = 자동(flex-grow)
+      const vHeight = idx === 0 ? '4px' : '20px';
       h += `<div class="htree-child">`;
-      h += `<div class="htree-hline ${lc}" id="${eId}">`;
+      h += `<div class="htree-elbow" id="${eId}">`;
+      h += `<div class="htree-elbow-v ${lc}" style="height:${vHeight}"></div>`;
+      h += `<div class="htree-elbow-h ${lc}">`;
       if (edge.bandwidth_gbps) h += `<span class="htree-bw-label">${edge.bandwidth_gbps}</span>`;
       h += `</div>`;
+      h += `</div>`;
+      h += `<div class="htree-child-content">`;
       h += buildNode(edge.target);
+      h += `</div>`;
       h += `</div>`;
     });
     h += `</div>`;
@@ -396,9 +424,8 @@ function hlSeg(i) {
 }
 
 function unhlSeg() {
-  // seg-hl 제거
-  document.querySelectorAll('.htree-hline.seg-hl').forEach(el => el.classList.remove('seg-hl'));
-  document.querySelectorAll('.tbl tr.hl').forEach(tr => tr.classList.remove('hl'));
+  document.querySelectorAll('.seg-hl').forEach(el => el.classList.remove('seg-hl'));
+  document.querySelectorAll('.tbl tr.hl').forEach(el => el.classList.remove('hl'));
   // on-path 복원
   document.querySelectorAll('.htree-node.on-path').forEach(el => {
     if (!el.classList.contains('src-sel') && !el.classList.contains('dst-sel')) el.classList.remove('on-path');
@@ -415,15 +442,25 @@ function hlNode(id, cls) {
 }
 
 function hlEdge(fromId, toId, cls) {
-  // 양방향 체크
+  // elbow 요소 찾기 (양방향)
   let el = document.getElementById(`e_${esc(fromId)}_${esc(toId)}`);
   if (!el) el = document.getElementById(`e_${esc(toId)}_${esc(fromId)}`);
-  if (el) el.classList.add(cls);
+  if (el) {
+    // elbow 내의 세로/가로 부분 모두 하이라이트
+    el.querySelectorAll('.htree-elbow-v, .htree-elbow-h').forEach(part => part.classList.add(cls));
+  }
+
+  // 부모의 connector (부모 → children 그룹 연결 가로선)
+  [fromId, toId].forEach(nid => {
+    const co = document.getElementById(`co_${esc(nid)}`);
+    if (co) co.classList.add(cls);
+  });
 }
 
 function clearHL() {
   document.querySelectorAll('.htree-node').forEach(el => el.classList.remove('src-sel','dst-sel','on-path'));
-  document.querySelectorAll('.htree-hline').forEach(el => el.classList.remove('trace-hl','seg-hl'));
+  document.querySelectorAll('.htree-elbow-v, .htree-elbow-h').forEach(el => el.classList.remove('trace-hl','seg-hl'));
+  document.querySelectorAll('.htree-connector').forEach(el => el.classList.remove('trace-hl','seg-hl'));
 }
 
 function clearSel() {
