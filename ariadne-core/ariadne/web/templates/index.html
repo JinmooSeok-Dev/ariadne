@@ -21,11 +21,12 @@
 
     .htree { display:flex; align-items:center; }
     .htree-node {
-      display:flex; align-items:center; gap:4px;
+      display:inline-flex; align-items:center; gap:4px;
       padding:5px 10px; border-radius:5px; cursor:pointer;
       white-space:nowrap; font-size:11px;
       border:1.5px solid transparent;
       flex-shrink:0;
+      min-width:160px;
     }
     .htree-node:hover { filter:brightness(1.3); }
     .htree-node.src-sel { border-color:#22c55e !important; }
