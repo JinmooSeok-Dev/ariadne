@@ -50,22 +50,81 @@
 
     #trace-panel {
       position: absolute;
-      bottom: 0; left: 0; right: 360px;
+      bottom: 0; left: 0; right: 0;
       background: #1a1a2e;
       border-top: 2px solid #e94560;
-      padding: 14px 24px;
+      padding: 16px 24px;
       display: none;
-      max-height: 35vh;
+      max-height: 45vh;
       overflow-y: auto;
     }
     #trace-panel.active { display: block; }
-    #trace-panel h3 { font-size: 13px; color: #e94560; margin-bottom: 8px; }
+
+    .trace-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 16px;
+    }
+    .trace-header h3 { font-size: 14px; color: #e94560; white-space: nowrap; }
+    .trace-summary {
+      display: flex;
+      gap: 16px;
+    }
+    .summary-card {
+      background: #0f0f1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px 16px;
+      text-align: center;
+    }
+    .summary-card .card-label { font-size: 10px; color: #888; }
+    .summary-card .card-value { font-size: 18px; font-weight: bold; color: #06b6d4; }
+    .summary-card.bottleneck-card .card-value { color: #e94560; font-size: 12px; }
+    .summary-card.numa-card .card-value { font-size: 14px; }
+
+    .trace-body { display: flex; gap: 24px; }
+    .trace-path-diagram { flex: 0 0 200px; }
+    .trace-table-container { flex: 1; }
+
+    .path-step {
+      display: flex;
+      align-items: center;
+      margin: 2px 0;
+    }
+    .path-node {
+      font-size: 11px;
+      font-weight: bold;
+      padding: 4px 8px;
+      background: #0f0f1a;
+      border-radius: 4px;
+      border-left: 3px solid #444;
+      width: 100%;
+    }
+    .path-link {
+      font-size: 10px;
+      color: #888;
+      padding: 2px 0 2px 12px;
+      border-left: 2px dashed #333;
+      margin-left: 5px;
+    }
+    .path-node.is-bottleneck { border-left-color: #e94560; color: #e94560; }
+
     #trace-panel table { width: 100%; border-collapse: collapse; }
     #trace-panel th, #trace-panel td {
-      padding: 4px 8px; text-align: left; font-size: 11px; border-bottom: 1px solid #333;
+      padding: 6px 10px; text-align: left; font-size: 11px; border-bottom: 1px solid #282840;
     }
-    #trace-panel th { color: #888; }
+    #trace-panel th { color: #888; font-size: 10px; text-transform: uppercase; }
     .bottleneck { color: #e94560; font-weight: bold; }
+
+    .bw-bar {
+      display: inline-block;
+      height: 10px;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+    .bw-bar-eff { background: #22c55e; }
+    .bw-bar-bg { background: #333; }
 
     .numa-group { fill: rgba(240, 192, 64, 0.06); stroke: #f0c040; stroke-width: 1.5; stroke-dasharray: 6,3; rx: 12; }
     .numa-label { fill: #f0c040; font-size: 13px; font-weight: bold; }
@@ -417,23 +476,78 @@
     function showTraceResult(result) {
       const panel = document.getElementById('trace-panel');
       panel.classList.add('active');
-      let html = `<h3>${result.source_name} → ${result.destination_name}</h3>`;
-      if (result.segments?.length) {
-        html += '<table><tr><th>Segment</th><th>Theo BW</th><th>Eff BW</th><th>Latency</th></tr>';
-        for (const s of result.segments) {
-          html += `<tr><td>${s.from_name} → ${s.to_name}</td>`;
-          html += `<td>${s.theoretical_bw_gbps ? s.theoretical_bw_gbps + ' GB/s' : 'internal'}</td>`;
-          html += `<td>${s.effective_bw_gbps ? s.effective_bw_gbps + ' GB/s' : '—'}</td>`;
-          html += `<td>${s.latency_ns}ns</td></tr>`;
-        }
-        html += `<tr style="border-top:2px solid #555"><td><b>E2E</b></td><td></td>`;
-        html += `<td><b>${result.e2e_bandwidth_gbps} GB/s</b></td><td><b>${result.e2e_latency_ns}ns</b></td></tr>`;
-        if (result.bottleneck) html += `<tr><td class="bottleneck">Bottleneck</td><td colspan="3" class="bottleneck">${result.bottleneck}</td></tr>`;
-        html += '</table>';
-        html += result.same_numa ? '<p style="color:#22c55e;margin-top:6px;">✅ same-NUMA</p>' : '<p style="color:#f59e0b;margin-top:6px;">⚠️ cross-NUMA</p>';
-      } else {
-        html += '<p style="color:#e94560;">No path found</p>';
+
+      if (!result.segments?.length) {
+        panel.innerHTML = '<h3 style="color:#e94560;">No path found</h3>';
+        return;
       }
+
+      const numaStr = result.same_numa
+        ? '<span style="color:#22c55e;">✅ same-NUMA</span>'
+        : '<span style="color:#f59e0b;">⚠️ cross-NUMA</span>';
+      const maxBw = Math.max(...result.segments.map(s => s.theoretical_bw_gbps || 0), 1);
+
+      let html = `<div class="trace-header">
+        <h3>${result.source_name} → ${result.destination_name}</h3>
+        <div class="trace-summary">
+          <div class="summary-card"><div class="card-label">E2E Bandwidth</div><div class="card-value">${result.e2e_bandwidth_gbps} GB/s</div></div>
+          <div class="summary-card"><div class="card-label">E2E Latency</div><div class="card-value">${result.e2e_latency_ns}ns</div></div>
+          <div class="summary-card bottleneck-card"><div class="card-label">Bottleneck</div><div class="card-value">${result.bottleneck || 'None'}</div></div>
+          <div class="summary-card numa-card"><div class="card-label">NUMA</div><div class="card-value">${numaStr}</div></div>
+        </div>
+      </div>`;
+
+      html += '<div class="trace-body">';
+
+      // 경로 다이어그램
+      html += '<div class="trace-path-diagram">';
+      for (let i = 0; i < result.segments.length; i++) {
+        const s = result.segments[i];
+        const isBn = result.bottleneck && s.from_name && result.bottleneck.includes(s.from_name);
+        if (i === 0) {
+          html += `<div class="path-node ${isBn ? 'is-bottleneck' : ''}">${s.from_name}</div>`;
+        }
+        const linkType = (s.link_type || '').includes('pcie') ? 'PCIe' : (s.link_type || '').includes('memory') ? 'DDR' : '→';
+        const bwStr = s.theoretical_bw_gbps ? ` ${s.theoretical_bw_gbps} GB/s` : '';
+        html += `<div class="path-link">${linkType}${bwStr} · ${s.latency_ns}ns</div>`;
+        const nextBn = result.bottleneck && s.to_name && result.bottleneck.includes(s.to_name);
+        html += `<div class="path-node ${nextBn ? 'is-bottleneck' : ''}">${s.to_name}</div>`;
+      }
+      html += '</div>';
+
+      // 테이블
+      html += '<div class="trace-table-container">';
+      html += '<table><tr><th>#</th><th>Segment</th><th>Link</th><th>Theo BW</th><th>Eff BW</th><th>Efficiency</th><th>BW</th><th>Latency</th></tr>';
+      for (let i = 0; i < result.segments.length; i++) {
+        const s = result.segments[i];
+        const theo = s.theoretical_bw_gbps;
+        const eff = s.effective_bw_gbps;
+        const linkType = (s.link_type || '').includes('pcie') ? '<span style="color:#e94560">PCIe</span>'
+          : (s.link_type || '').includes('memory') ? '<span style="color:#3b82f6">DDR</span>'
+          : '<span style="color:#666">int</span>';
+        const theoStr = theo ? `${theo} GB/s` : '<span style="color:#666">—</span>';
+        const effStr = eff ? `${eff} GB/s` : '<span style="color:#666">—</span>';
+        const effPct = theo && eff ? `${(eff / theo * 100).toFixed(0)}%` : '<span style="color:#666">—</span>';
+
+        let barHtml = '';
+        if (theo > 0) {
+          const barW = 80;
+          const effW = Math.round(barW * (eff || 0) / maxBw);
+          const theoW = Math.round(barW * theo / maxBw);
+          barHtml = `<span class="bw-bar bw-bar-eff" style="width:${effW}px"></span><span class="bw-bar bw-bar-bg" style="width:${theoW - effW}px"></span>`;
+        }
+
+        const isBn = result.bottleneck && s.from_name && result.bottleneck.includes(s.from_name);
+        const bnMark = isBn ? ' <span class="bottleneck">◄</span>' : '';
+
+        html += `<tr><td style="color:#666">${i + 1}</td><td>${s.from_name} → ${s.to_name}${bnMark}</td>`;
+        html += `<td>${linkType}</td><td>${theoStr}</td><td>${effStr}</td><td>${effPct}</td><td>${barHtml}</td><td>${s.latency_ns}ns</td></tr>`;
+      }
+      html += `<tr style="border-top:2px solid #444"><td></td><td><b>E2E Total</b></td><td></td><td></td>`;
+      html += `<td><b style="color:#06b6d4">${result.e2e_bandwidth_gbps} GB/s</b></td><td></td><td></td>`;
+      html += `<td><b style="color:#06b6d4">${result.e2e_latency_ns}ns</b></td></tr>`;
+      html += '</table></div></div>';
+
       panel.innerHTML = html;
     }
 

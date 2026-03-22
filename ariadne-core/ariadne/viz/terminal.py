@@ -338,56 +338,109 @@ def render_trace(result: TraceResult) -> None:
     return
 
   console.print()
-  console.print(f"[bold]Flow: {result.source_name} → {result.destination_name}[/]")
+
+  # 요약 패널
+  numa_str = "[green]same-NUMA[/]" if result.same_numa else "[yellow]cross-NUMA[/]"
+  bw_str = f"{result.e2e_bandwidth_gbps} GB/s" if result.e2e_bandwidth_gbps > 0 else "—"
+  summary = Table.grid(padding=(0, 3))
+  summary.add_row(
+    f"[bold]{result.source_name}[/] → [bold]{result.destination_name}[/]",
+    f"[bold cyan]BW: {bw_str}[/]",
+    f"[bold cyan]Latency: {result.e2e_latency_ns:.0f}ns[/]",
+    numa_str,
+  )
+  console.print(Panel(summary, title="[bold]E2E Flow[/]", border_style="cyan"))
   console.print()
 
-  path_parts = []
-  for seg in result.segments:
-    if not path_parts:
-      path_parts.append(seg["from_name"])
-    link_type = seg.get("link_type", "")
-    if "pcie" in str(link_type).lower():
-      speed = seg.get("theoretical_bw_gbps")
-      arrow = f"──PCIe──►" if not speed else f"──PCIe ({speed} GB/s)──►"
-    elif "memory" in str(link_type).lower():
-      arrow = "──DDR──►"
+  # 경로 다이어그램
+  max_bw = max((s.get("theoretical_bw_gbps") or 0) for s in result.segments) if result.segments else 1
+  path_tree = Tree("[bold]Path[/]")
+  for i, seg in enumerate(result.segments):
+    link_type = str(seg.get("link_type", ""))
+    theo = seg.get("theoretical_bw_gbps")
+    eff = seg.get("effective_bw_gbps")
+    lat = seg["latency_ns"]
+    is_bottleneck = result.bottleneck and seg["from_name"] in result.bottleneck
+
+    if "pcie" in link_type:
+      link_label = "PCIe"
+      link_color = "red"
+    elif "memory" in link_type:
+      link_label = "DDR"
+      link_color = "blue"
+    elif "upi" in link_type or "infinity" in link_type:
+      link_label = "UPI/IF"
+      link_color = "yellow"
     else:
-      arrow = "──►"
-    path_parts.append(arrow)
-    path_parts.append(seg["to_name"])
+      link_label = "internal"
+      link_color = "dim"
 
-  console.print(f"[dim]Path: {' '.join(path_parts)}[/]")
+    # BW 바 차트
+    bar = ""
+    if theo and theo > 0:
+      bar_len = int(20 * theo / max(max_bw, 1))
+      eff_len = int(20 * (eff or 0) / max(max_bw, 1))
+      bar = f"[green]{'█' * eff_len}[/][dim]{'░' * (bar_len - eff_len)}[/]"
+      bw_info = f"  {eff} / {theo} GB/s ({eff / theo * 100:.0f}%)" if eff else f"  {theo} GB/s"
+    else:
+      bw_info = ""
+
+    bn_mark = " [bold red]◄ BOTTLENECK[/]" if is_bottleneck else ""
+
+    if i == 0:
+      path_tree.add(f"[bold]{seg['from_name']}[/]")
+
+    seg_line = f"[{link_color}]──{link_label}──►[/]  [dim]{lat:.0f}ns[/]  {bar}{bw_info}{bn_mark}"
+    path_tree.add(seg_line)
+    path_tree.add(f"[bold]{seg['to_name']}[/]")
+
+  console.print(path_tree)
   console.print()
 
-  table = Table(title="Breakdown")
-  table.add_column("구간", style="bold")
-  table.add_column("이론 BW", justify="right")
-  table.add_column("실효 BW", justify="right")
-  table.add_column("latency", justify="right")
+  # 상세 breakdown 테이블
+  table = Table(title="Segment Breakdown", show_lines=True)
+  table.add_column("#", style="dim", width=3)
+  table.add_column("Segment", style="bold", min_width=20)
+  table.add_column("Link", justify="center", width=8)
+  table.add_column("Theo BW", justify="right", width=10)
+  table.add_column("Eff BW", justify="right", width=10)
+  table.add_column("Efficiency", justify="right", width=10)
+  table.add_column("Latency", justify="right", width=8)
+  table.add_column("", width=12)
 
-  for seg in result.segments:
-    seg_name = f"{seg['from_name']} → {seg['to_name']}"
-    theo_bw = f"{seg['theoretical_bw_gbps']} GB/s" if seg.get("theoretical_bw_gbps") else "[dim]internal[/]"
-    eff_bw = f"{seg['effective_bw_gbps']} GB/s" if seg.get("effective_bw_gbps") else "[dim]—[/]"
-    latency = f"{seg['latency_ns']:.0f}ns"
-    table.add_row(seg_name, theo_bw, eff_bw, latency)
+  for i, seg in enumerate(result.segments):
+    theo = seg.get("theoretical_bw_gbps")
+    eff = seg.get("effective_bw_gbps")
+    lat = seg["latency_ns"]
+    link_type = str(seg.get("link_type", ""))
+    is_bottleneck = result.bottleneck and seg["from_name"] in result.bottleneck
+
+    if "pcie" in link_type:
+      link_str = "[red]PCIe[/]"
+    elif "memory" in link_type:
+      link_str = "[blue]DDR[/]"
+    elif "upi" in link_type:
+      link_str = "[yellow]UPI[/]"
+    else:
+      link_str = "[dim]int[/]"
+
+    theo_str = f"{theo} GB/s" if theo else "[dim]—[/]"
+    eff_str = f"{eff} GB/s" if eff else "[dim]—[/]"
+    eff_pct = f"{eff / theo * 100:.0f}%" if theo and eff else "[dim]—[/]"
+    lat_str = f"{lat:.0f}ns"
+    bn = "[bold red]◄ BN[/]" if is_bottleneck else ""
+
+    table.add_row(str(i + 1), f"{seg['from_name']} → {seg['to_name']}", link_str, theo_str, eff_str, eff_pct, lat_str, bn)
 
   table.add_section()
-
-  e2e_bw = f"[bold]{result.e2e_bandwidth_gbps} GB/s[/]" if result.e2e_bandwidth_gbps > 0 else "[dim]—[/]"
-  e2e_lat = f"[bold]{result.e2e_latency_ns:.0f}ns[/]"
-  table.add_row("[bold]E2E[/]", "", e2e_bw, e2e_lat)
-
-  if result.bottleneck:
-    table.add_row("[bold red]Bottleneck[/]", "", f"[red]{result.bottleneck}[/]", "")
+  table.add_row(
+    "", "[bold]E2E Total[/]", "",
+    "", f"[bold cyan]{bw_str}[/]", "",
+    f"[bold cyan]{result.e2e_latency_ns:.0f}ns[/]",
+    f"[bold red]{result.bottleneck}[/]" if result.bottleneck else "",
+  )
 
   console.print(table)
-  console.print()
-
-  if result.same_numa:
-    console.print("[green]✅ same-NUMA (cross-NUMA penalty 없음)[/]")
-  else:
-    console.print("[yellow]⚠️ cross-NUMA (추가 latency 반영됨)[/]")
   console.print()
 
 
