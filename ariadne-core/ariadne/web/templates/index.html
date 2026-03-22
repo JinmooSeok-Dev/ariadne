@@ -191,27 +191,41 @@ async function init() {
     container: document.getElementById('cy-container'),
     elements: elements,
     style: [
-      // Compound (NUMA) nodes
+      // Compound: NUMA
       { selector: 'node[type="numa_node"]', style: {
-        'background-color': '#f0c04010', 'border-color': '#f0c040', 'border-width': 2,
+        'background-color': '#f0c04008', 'border-color': '#f0c040', 'border-width': 2,
         'border-style': 'dashed', 'shape': 'roundrectangle',
         'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
         'font-size': 14, 'color': '#f0c040', 'font-weight': 'bold',
         'padding': 30, 'text-margin-y': -8,
       }},
-      // Regular nodes
-      { selector: 'node[type!="numa_node"]', style: {
+      // Compound: Root Complex
+      { selector: 'node[type="pcie_root_complex"]', style: {
+        'background-color': '#e9456010', 'border-color': '#e94560', 'border-width': 2,
+        'border-style': 'solid', 'shape': 'roundrectangle',
+        'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
+        'font-size': 12, 'color': '#e94560', 'font-weight': 'bold',
+        'padding': 20, 'text-margin-y': -6,
+      }},
+      // Compound: Root Port
+      { selector: 'node[type="pcie_root_port"]', style: {
+        'background-color': '#7c3aed08', 'border-color': '#7c3aed', 'border-width': 1.5,
+        'border-style': 'dotted', 'shape': 'roundrectangle',
+        'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
+        'font-size': 9, 'color': '#7c3aed',
+        'padding': 14, 'text-margin-y': -4,
+      }},
+      // Leaf nodes (endpoints + infra)
+      { selector: 'node[type!="numa_node"][type!="pcie_root_complex"][type!="pcie_root_port"]', style: {
         'label': 'data(label)',
         'text-valign': 'center', 'text-halign': 'center',
-        'font-size': 10, 'color': '#eee', 'text-wrap': 'wrap', 'text-max-width': 100,
-        'width': 120, 'height': 44,
+        'font-size': 10, 'color': '#eee', 'text-wrap': 'wrap', 'text-max-width': 110,
+        'width': 130, 'height': 44,
         'background-color': function(ele) { return TYPE_COLORS[ele.data('type')] || '#666'; },
-        'shape': function(ele) { return TYPE_SHAPES[ele.data('type')] || 'roundrectangle'; },
+        'shape': 'roundrectangle',
         'border-width': 1.5,
         'border-color': function(ele) { return TYPE_COLORS[ele.data('type')] || '#666'; },
       }},
-      // Non-traceable nodes dimmed
-      { selector: 'node.not-traceable', style: { 'opacity': 0.5 }},
       // Edges
       { selector: 'edge', style: {
         'width': function(ele) {
@@ -261,10 +275,10 @@ async function init() {
     layout: {
       name: 'dagre',
       rankDir: 'TB',
-      spacingFactor: 1.3,
-      nodeSep: 30,
-      rankSep: 80,
-      padding: 40,
+      spacingFactor: 1.5,
+      nodeSep: 40,
+      rankSep: 60,
+      padding: 50,
     },
     minZoom: 0.15, maxZoom: 3,
     wheelSensitivity: 0.3,
