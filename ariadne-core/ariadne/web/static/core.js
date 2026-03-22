@@ -161,40 +161,42 @@ function fold(chId, el) {
 function drawEdges() {
   const svg = document.getElementById('edge-svg');
   const container = document.getElementById('tree-content');
-  // 측정을 위해 스케일 임시 리셋
-  const savedScale = App.zoomScale;
-  container.style.transform = 'scale(1)';
-  const rect = container.getBoundingClientRect();
   svg.setAttribute('width', container.scrollWidth);
   svg.setAttribute('height', container.scrollHeight);
   svg.innerHTML = '';
   App.edgeMap = {};
 
   App.graph.edges.forEach(e => {
-    const coords = calcEdgeCoords(e.data, rect);
+    const coords = calcEdgeCoords(e.data, container);
     if (!coords) return;
     registerEdge(e.data, coords);
     svg.appendChild(createEdgeGroup(e.data, coords));
   });
-
-  // 스케일 복구
-  container.style.transform = `scale(${savedScale})`;
 }
 
-function calcEdgeCoords(edgeData, containerRect) {
+function getOffsetTo(el, ancestor) {
+  let x = 0, y = 0;
+  while (el && el !== ancestor) {
+    x += el.offsetLeft;
+    y += el.offsetTop;
+    el = el.offsetParent;
+  }
+  return { x, y };
+}
+
+function calcEdgeCoords(edgeData, container) {
   const srcEl = document.getElementById(ID.node(edgeData.source));
   const tgtEl = document.getElementById(ID.node(edgeData.target));
   if (!srcEl || !tgtEl) return null;
+  if (srcEl.offsetParent === null || tgtEl.offsetParent === null) return null;
 
-  const sr = srcEl.getBoundingClientRect();
-  const tr = tgtEl.getBoundingClientRect();
-  return {
-    x1: sr.right - containerRect.left,
-    y1: sr.top + sr.height / 2 - containerRect.top,
-    x2: tr.left - containerRect.left,
-    y2: tr.top + tr.height / 2 - containerRect.top,
-    mx: (sr.right - containerRect.left + tr.left - containerRect.left) / 2,
-  };
+  const sp = getOffsetTo(srcEl, container);
+  const tp = getOffsetTo(tgtEl, container);
+  const x1 = sp.x + srcEl.offsetWidth;
+  const y1 = sp.y + srcEl.offsetHeight / 2;
+  const x2 = tp.x;
+  const y2 = tp.y + tgtEl.offsetHeight / 2;
+  return { x1, y1, x2, y2, mx: (x1 + x2) / 2 };
 }
 
 function registerEdge(edgeData, coords) {
