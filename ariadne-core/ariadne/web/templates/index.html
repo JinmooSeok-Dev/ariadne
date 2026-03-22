@@ -7,221 +7,267 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f1a; color: #eee; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f1a; color: #eee; overflow: hidden; }
 
+    /* === Header === */
     #header {
-      padding: 10px 24px;
+      height: 44px;
+      padding: 0 16px;
       background: #1a1a2e;
       border-bottom: 1px solid #333;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
     }
-    #header h1 { font-size: 18px; color: #e94560; }
-    #header .hostname { color: #888; font-size: 14px; }
-    #header .stats { color: #666; font-size: 12px; margin-left: auto; }
-    #header button {
-      padding: 5px 14px;
-      background: #e94560;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    }
+    #header h1 { font-size: 16px; color: #e94560; white-space: nowrap; }
+    #header .hostname { color: #666; font-size: 12px; }
 
-    #main { display: flex; height: calc(100vh - 44px); }
-
-    #graph-container { flex: 1; position: relative; overflow: hidden; }
-
-    #sidebar {
-      width: 380px;
-      background: #1a1a2e;
-      border-left: 1px solid #333;
-      overflow-y: auto;
-      padding: 16px;
-      display: none;
-    }
-    #sidebar.active { display: block; }
-    #sidebar h2 { font-size: 14px; color: #e94560; margin-bottom: 10px; }
-    #sidebar .field { margin-bottom: 6px; }
-    #sidebar .label { color: #666; font-size: 11px; }
-    #sidebar .value { color: #ddd; font-size: 13px; }
-
-    #trace-panel {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      background: #1a1a2e;
-      border-top: 2px solid #e94560;
-      padding: 16px 24px;
-      display: none;
-      max-height: 45vh;
-      overflow-y: auto;
-      z-index: 20;
-    }
-    #trace-panel.active { display: block; }
-    #trace-close {
-      position: absolute;
-      top: 8px; right: 16px;
-      background: #333;
-      color: #ccc;
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 12px;
-      cursor: pointer;
-      font-size: 12px;
-      z-index: 21;
-    }
-    #trace-close:hover { background: #e94560; color: white; }
-
-    .trace-header {
+    /* === Toolbar === */
+    #toolbar {
+      height: 40px;
+      padding: 0 16px;
+      background: #141428;
+      border-bottom: 1px solid #282840;
       display: flex;
       align-items: center;
-      gap: 24px;
-      margin-bottom: 16px;
+      gap: 8px;
     }
-    .trace-header h3 { font-size: 14px; color: #e94560; white-space: nowrap; }
-    .trace-summary {
-      display: flex;
-      gap: 16px;
-    }
-    .summary-card {
-      background: #0f0f1a;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 8px 16px;
-      text-align: center;
-    }
-    .summary-card .card-label { font-size: 10px; color: #888; }
-    .summary-card .card-value { font-size: 18px; font-weight: bold; color: #06b6d4; }
-    .summary-card.bottleneck-card .card-value { color: #e94560; font-size: 12px; }
-    .summary-card.numa-card .card-value { font-size: 14px; }
-
-    .trace-body { display: flex; gap: 24px; }
-    .trace-path-diagram { flex: 0 0 200px; }
-    .trace-table-container { flex: 1; }
-
-    .path-step {
+    .tb-group {
       display: flex;
       align-items: center;
-      margin: 2px 0;
+      gap: 4px;
+      padding: 0 8px;
+      border-right: 1px solid #333;
+      height: 100%;
     }
-    .path-node {
+    .tb-group:last-child { border-right: none; }
+    .tb-label { font-size: 10px; color: #666; margin-right: 4px; text-transform: uppercase; }
+    .tb-chip {
+      padding: 3px 8px;
+      border-radius: 3px;
       font-size: 11px;
-      font-weight: bold;
-      padding: 4px 8px;
-      background: #0f0f1a;
+      cursor: pointer;
+      border: 1px solid #444;
+      background: #1a1a2e;
+      color: #aaa;
+      user-select: none;
+    }
+    .tb-chip.active { border-color: var(--chip-color, #888); color: var(--chip-color, #fff); background: rgba(255,255,255,0.05); }
+    .tb-chip:hover { background: rgba(255,255,255,0.08); }
+    .tb-btn {
+      padding: 4px 12px;
       border-radius: 4px;
-      border-left: 3px solid #444;
-      width: 100%;
+      font-size: 11px;
+      cursor: pointer;
+      border: none;
+      font-weight: bold;
     }
-    .path-link {
-      font-size: 10px;
-      color: #888;
-      padding: 2px 0 2px 12px;
-      border-left: 2px dashed #333;
-      margin-left: 5px;
+    .tb-btn-trace { background: #e94560; color: white; }
+    .tb-btn-trace:hover { background: #c73e54; }
+    .tb-btn-reload { background: #333; color: #ccc; border: 1px solid #555; }
+    #search-input {
+      padding: 4px 8px;
+      border-radius: 3px;
+      border: 1px solid #444;
+      background: #0f0f1a;
+      color: #ddd;
+      font-size: 11px;
+      width: 150px;
+      outline: none;
     }
-    .path-node.is-bottleneck { border-left-color: #e94560; color: #e94560; }
+    #search-input:focus { border-color: #e94560; }
 
-    #trace-panel table { width: 100%; border-collapse: collapse; }
-    #trace-panel th, #trace-panel td {
-      padding: 6px 10px; text-align: left; font-size: 11px; border-bottom: 1px solid #282840;
+    /* === Main Layout === */
+    #main {
+      display: flex;
+      height: calc(100vh - 84px);
     }
-    #trace-panel th { color: #888; font-size: 10px; text-transform: uppercase; }
-    .bottleneck { color: #e94560; font-weight: bold; }
 
-    .bw-bar {
-      display: inline-block;
-      height: 10px;
-      border-radius: 2px;
-      vertical-align: middle;
+    /* === Graph === */
+    #graph-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
     }
-    .bw-bar-eff { background: #22c55e; }
-    .bw-bar-bg { background: #333; }
-
-    .numa-group { fill: rgba(240, 192, 64, 0.06); stroke: #f0c040; stroke-width: 1.5; stroke-dasharray: 6,3; rx: 12; }
-    .numa-label { fill: #f0c040; font-size: 13px; font-weight: bold; }
-
-    .node-rect { rx: 6; cursor: pointer; stroke-width: 1.5; }
-    .node-rect:hover { filter: brightness(1.3); }
-    .node-label { font-size: 10px; fill: #ddd; pointer-events: none; text-anchor: middle; }
-    .node-sublabel { font-size: 9px; fill: #888; pointer-events: none; text-anchor: middle; }
-
-    .link-line { fill: none; }
-    .link-line:hover { stroke-opacity: 1 !important; stroke-width: 4 !important; }
-    .link-bw { font-size: 8px; fill: #888; text-anchor: middle; }
-
-    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 5 !important; filter: drop-shadow(0 0 4px #e94560); }
-    .node-selected .node-rect { stroke: #e94560 !important; stroke-width: 3 !important; }
-    .node-source .node-rect { stroke: #22c55e !important; stroke-width: 3 !important; }
-    .node-dest .node-rect { stroke: #f59e0b !important; stroke-width: 3 !important; }
-    .node-not-traceable .node-rect { opacity: 0.5; cursor: default; }
-    .node-not-traceable .node-rect:hover { filter: none; }
-
-    #selection-bar {
+    #legend {
       position: absolute;
-      top: 12px;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(20, 20, 40, 0.95);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 10px;
+    }
+    #legend .item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    #legend .swatch { width: 12px; height: 8px; border-radius: 2px; }
+
+    #sel-bar {
+      position: absolute;
+      top: 8px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(26, 26, 46, 0.95);
-      padding: 8px 16px;
+      background: rgba(20, 20, 40, 0.95);
+      padding: 6px 14px;
       border-radius: 6px;
       font-size: 12px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      z-index: 10;
+      gap: 10px;
+      z-index: 5;
     }
-    #selection-bar .src-badge { color: #22c55e; font-weight: bold; }
-    #selection-bar .dest-badge { color: #f59e0b; font-weight: bold; }
-    #selection-bar button {
-      padding: 4px 14px;
-      background: #e94560;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+    .src-badge { color: #22c55e; font-weight: bold; }
+    .dst-badge { color: #f59e0b; font-weight: bold; }
+
+    /* === Sidebar === */
+    #sidebar {
+      width: 400px;
+      background: #1a1a2e;
+      border-left: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid #333;
+    }
+    .sidebar-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
       font-size: 11px;
-      font-weight: bold;
+      cursor: pointer;
+      color: #666;
+      border-bottom: 2px solid transparent;
     }
-    #selection-bar button:hover { background: #c73e54; }
+    .sidebar-tab.active { color: #e94560; border-bottom-color: #e94560; }
+    .sidebar-tab:hover { color: #ccc; }
+
+    #sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Sidebar sections */
+    .sb-section { margin-bottom: 16px; }
+    .sb-title { font-size: 12px; color: #e94560; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #282840; padding-bottom: 4px; }
+    .sb-field { margin-bottom: 4px; }
+    .sb-label { font-size: 10px; color: #666; }
+    .sb-value { font-size: 12px; color: #ddd; }
+
+    /* Summary cards */
+    .summary-cards { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .s-card {
+      flex: 1;
+      min-width: 80px;
+      background: #0f0f1a;
+      border: 1px solid #282840;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+    .s-card-label { font-size: 9px; color: #666; text-transform: uppercase; }
+    .s-card-value { font-size: 16px; font-weight: bold; color: #06b6d4; }
+    .s-card-value.bn { color: #e94560; font-size: 11px; }
+
+    /* Path diagram */
+    .path-step { margin: 1px 0; }
+    .path-node {
+      font-size: 11px;
+      padding: 4px 8px;
+      background: #0f0f1a;
+      border-left: 3px solid #444;
+      border-radius: 0 4px 4px 0;
+    }
+    .path-node.is-src { border-left-color: #22c55e; }
+    .path-node.is-dst { border-left-color: #f59e0b; }
+    .path-node.is-bn { border-left-color: #e94560; }
+    .path-link {
+      font-size: 9px;
+      color: #666;
+      padding: 1px 0 1px 14px;
+      border-left: 1px dashed #333;
+      margin-left: 4px;
+    }
+    .path-link .bw-bar-container { display: inline-block; width: 60px; height: 6px; background: #282840; border-radius: 2px; vertical-align: middle; margin: 0 4px; }
+    .path-link .bw-bar-fill { height: 100%; background: #22c55e; border-radius: 2px; }
+
+    /* Breakdown table */
+    .bd-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .bd-table th { color: #666; font-size: 9px; text-transform: uppercase; padding: 4px 6px; text-align: left; border-bottom: 1px solid #333; }
+    .bd-table td { padding: 4px 6px; border-bottom: 1px solid #1f1f35; }
+    .bd-table tr:hover { background: rgba(233, 69, 96, 0.08); }
+    .bd-table tr.is-bn td { color: #e94560; }
+    .bd-table .bw-mini { display: inline-block; height: 8px; border-radius: 1px; vertical-align: middle; }
+
+    /* History */
+    .history-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      margin: 2px 0;
+      display: flex;
+      justify-content: space-between;
+      border-left: 3px solid #333;
+    }
+    .history-item:hover { background: rgba(255,255,255,0.05); }
+    .history-item .hi-bw { color: #06b6d4; }
+
+    /* Context menu */
+    #ctx-menu {
+      position: absolute;
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 4px 0;
+      display: none;
+      z-index: 50;
+      min-width: 180px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .ctx-item {
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ctx-item:hover { background: rgba(233, 69, 96, 0.15); }
+    .ctx-sep { border-top: 1px solid #333; margin: 2px 0; }
+
+    /* Graph elements */
+    .numa-group { fill: rgba(240, 192, 64, 0.06); stroke: #f0c040; stroke-width: 1.5; stroke-dasharray: 6,3; rx: 12; }
+    .numa-label { fill: #f0c040; font-size: 13px; font-weight: bold; }
+    .node-rect { rx: 6; cursor: pointer; stroke-width: 1.5; }
+    .node-rect:hover { filter: brightness(1.3); }
+    .node-not-traceable .node-rect { opacity: 0.4; cursor: default; }
+    .node-not-traceable .node-rect:hover { filter: none; }
+    .node-label { font-size: 10px; fill: #ddd; pointer-events: none; text-anchor: middle; }
+    .node-sublabel { font-size: 9px; fill: #888; pointer-events: none; text-anchor: middle; }
+    .link-line { fill: none; }
+    .link-line:hover { stroke-opacity: 1 !important; stroke-width: 5 !important; }
+    .link-bw { font-size: 8px; fill: #888; text-anchor: middle; }
+    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 5 !important; filter: drop-shadow(0 0 4px #e94560); }
+    .node-source .node-rect { stroke: #22c55e !important; stroke-width: 3 !important; }
+    .node-dest .node-rect { stroke: #f59e0b !important; stroke-width: 3 !important; }
+    .node-on-path .node-rect { stroke: #e94560 !important; stroke-width: 2 !important; }
+    .edge-num { font-size: 9px; fill: #e94560; font-weight: bold; }
 
     .tooltip {
       position: absolute;
       background: #1a1a2e;
       border: 1px solid #555;
-      padding: 8px 12px;
+      padding: 6px 10px;
       border-radius: 4px;
       font-size: 11px;
       pointer-events: none;
       display: none;
-      z-index: 100;
-      max-width: 300px;
-    }
-
-    #legend {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(26, 26, 46, 0.95);
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 11px;
-    }
-    #legend .item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
-    #legend .swatch { width: 14px; height: 10px; border-radius: 2px; }
-
-    #instructions {
-      position: absolute;
-      bottom: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(26, 26, 46, 0.9);
-      padding: 6px 14px;
-      border-radius: 4px;
-      font-size: 11px;
-      color: #666;
+      z-index: 40;
+      max-width: 280px;
     }
   </style>
 </head>
@@ -229,486 +275,410 @@
   <div id="header">
     <h1>Ariadne</h1>
     <span class="hostname" id="hostname"></span>
-    <span class="stats" id="stats"></span>
-    <button onclick="reloadTopology()">Reload</button>
+  </div>
+
+  <div id="toolbar">
+    <div class="tb-group">
+      <span class="tb-label">Filter</span>
+      <span class="tb-chip active" data-filter="gpu" style="--chip-color:#22c55e" onclick="toggleFilter(this)">GPU</span>
+      <span class="tb-chip active" data-filter="npu" style="--chip-color:#06b6d4" onclick="toggleFilter(this)">NPU</span>
+      <span class="tb-chip active" data-filter="nvme" style="--chip-color:#f59e0b" onclick="toggleFilter(this)">NVMe</span>
+      <span class="tb-chip active" data-filter="nic" style="--chip-color:#a855f7" onclick="toggleFilter(this)">NIC</span>
+      <span class="tb-chip" data-filter="other" style="--chip-color:#888" onclick="toggleFilter(this)">Others</span>
+    </div>
+    <div class="tb-group">
+      <span class="tb-chip" id="iommu-toggle" style="--chip-color:#f0c040" onclick="toggleIOMMU(this)">IOMMU</span>
+    </div>
+    <div class="tb-group">
+      <input type="text" id="search-input" placeholder="Search (BDF, name...)" oninput="searchNodes(this.value)">
+    </div>
+    <div class="tb-group">
+      <button class="tb-btn tb-btn-trace" onclick="openTraceDropdown()">Trace ▾</button>
+    </div>
+    <div style="margin-left:auto">
+      <button class="tb-btn tb-btn-reload" onclick="reloadTopology()">Reload</button>
+    </div>
   </div>
 
   <div id="main">
     <div id="graph-container">
       <svg id="graph"></svg>
       <div id="legend"></div>
-      <div class="tooltip" id="tooltip"></div>
-      <div id="selection-bar">
-        <span id="sel-status">Click a device to start trace (GPU, NPU, NVMe, NIC, Memory)</span>
-        <button id="sel-clear" style="display:none" onclick="clearAll()">Clear (ESC)</button>
+      <div id="sel-bar">
+        <span id="sel-status">Click device or use Trace button</span>
+        <button class="tb-btn" id="sel-clear" style="display:none;background:#333;font-size:10px;" onclick="clearAll()">✕ ESC</button>
       </div>
-      <div id="trace-panel"></div>
+      <div class="tooltip" id="tooltip"></div>
     </div>
-    <div id="sidebar"></div>
+    <div id="sidebar">
+      <div id="sidebar-tabs">
+        <div class="sidebar-tab active" data-tab="trace" onclick="switchTab('trace')">Trace</div>
+        <div class="sidebar-tab" data-tab="info" onclick="switchTab('info')">Info</div>
+        <div class="sidebar-tab" data-tab="history" onclick="switchTab('history')">History</div>
+      </div>
+      <div id="sidebar-content">
+        <div style="color:#666;font-size:12px;padding:20px;text-align:center;">
+          Click a device node to start trace<br>
+          or use the Trace button in toolbar
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ctx-menu">
+    <div class="ctx-item" onclick="ctxSetSource()">🟢 Set as Source</div>
+    <div class="ctx-item" onclick="ctxSetDest()">🟡 Set as Destination</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxTraceToMem()">📦 Trace to Memory</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" onclick="ctxShowInfo()">ℹ️ Device Info</div>
   </div>
 
   <script>
     const COLORS = {
-      numa_node: '#f0c040',
-      socket: '#4ecdc4',
-      memory_controller: '#3b82f6',
-      pcie_root_complex: '#e94560',
-      pcie_root_port: '#7c3aed',
-      gpu: '#22c55e',
-      npu: '#06b6d4',
-      nic: '#a855f7',
-      nvme: '#f59e0b',
-      pcie_endpoint: '#6b7280',
+      numa_node:'#f0c040', socket:'#4ecdc4', memory_controller:'#3b82f6',
+      pcie_root_complex:'#e94560', pcie_root_port:'#7c3aed',
+      gpu:'#22c55e', npu:'#06b6d4', nic:'#a855f7', nvme:'#f59e0b', pcie_endpoint:'#6b7280',
     };
-
     const LABELS = {
-      numa_node: 'NUMA',
-      socket: 'Socket',
-      memory_controller: 'Mem Ctrl',
-      pcie_root_complex: 'Root Complex',
-      pcie_root_port: 'Root Port',
-      gpu: 'GPU',
-      npu: 'NPU',
-      nic: 'NIC',
-      nvme: 'NVMe',
-      pcie_endpoint: 'Device',
+      numa_node:'NUMA', socket:'Socket', memory_controller:'Mem Ctrl',
+      pcie_root_complex:'Root Complex', pcie_root_port:'Root Port',
+      gpu:'GPU', npu:'NPU', nic:'NIC', nvme:'NVMe', pcie_endpoint:'Device',
     };
+    const LAYERS = { numa_node:0, socket:1, memory_controller:1, pcie_root_complex:2, pcie_root_port:3, gpu:4, npu:4, nic:4, nvme:4, pcie_endpoint:4 };
+    const NODE_W = { default:120, pcie_root_port:24, memory_controller:100 };
+    const NODE_H = { default:44, pcie_root_port:20, memory_controller:36 };
+    const LAYER_GAP = 100, NODE_GAP = 16;
+    const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
+    const FILTER_MAP = { gpu:['gpu'], npu:['npu'], nvme:['nvme'], nic:['nic'], other:['pcie_endpoint','memory_controller','socket','pcie_root_complex','pcie_root_port'] };
 
-    const LAYERS = {
-      numa_node: 0,
-      socket: 1,
-      memory_controller: 1,
-      pcie_root_complex: 2,
-      pcie_root_port: 3,
-      gpu: 4, npu: 4, nic: 4, nvme: 4, pcie_endpoint: 4,
-    };
-
-    const NODE_W = { default: 120, pcie_root_port: 24, memory_controller: 100 };
-    const NODE_H = { default: 44, pcie_root_port: 20, memory_controller: 36 };
-    const LAYER_GAP = 100;
-    const NODE_GAP = 16;
-
-    const TRACEABLE_TYPES = new Set(['gpu', 'npu', 'nvme', 'nic', 'memory_controller', 'pcie_endpoint']);
-
-    let graphData = null;
-    let selectedNodes = [];
-    let currentNodeElements = null;
-    let currentLinkElements = null;
+    let graphData=null, positions={}, selectedNodes=[], traceHistory=[];
+    let currentNodeEls=null, currentLinkEls=null, currentEdgeNums=null;
+    let activeFilters = new Set(['gpu','npu','nvme','nic']);
+    let ctxTarget = null;
 
     async function loadTopology() {
-      const resp = await fetch('/api/topology/graph');
-      graphData = await resp.json();
-      const topoResp = await fetch('/api/topology');
-      const topo = await topoResp.json();
-      document.getElementById('hostname').textContent = topo.hostname;
-      document.getElementById('stats').textContent =
-        `${topo.numa_nodes.length} NUMA · ${topo.cpu_cores.length} cores · ${topo.pci_devices.length} PCI devices`;
-      renderHierarchy(graphData);
+      const r = await fetch('/api/topology/graph');
+      graphData = await r.json();
+      const t = await (await fetch('/api/topology')).json();
+      document.getElementById('hostname').textContent = `${t.hostname} · ${t.numa_nodes.length} NUMA · ${t.cpu_cores.length} cores · ${t.pci_devices.length} PCI`;
+      renderGraph(graphData);
       renderLegend();
     }
 
-    function renderHierarchy(data) {
+    function renderGraph(data) {
       const container = document.getElementById('graph-container');
-      const svgW = container.clientWidth;
-      const svgH = container.clientHeight;
-
+      const W = container.clientWidth, H = container.clientHeight;
       d3.select('#graph').selectAll('*').remove();
-      const svg = d3.select('#graph').attr('width', svgW).attr('height', svgH);
+      const svg = d3.select('#graph').attr('width',W).attr('height',H);
       const g = svg.append('g');
+      svg.call(d3.zoom().scaleExtent([0.15,3]).on('zoom', e => g.attr('transform',e.transform)));
 
-      svg.call(d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => g.attr('transform', e.transform)));
-
-      const adjacency = {};
-      data.links.forEach(l => {
-        if (!adjacency[l.source]) adjacency[l.source] = [];
-        if (!adjacency[l.target]) adjacency[l.target] = [];
-        adjacency[l.source].push(l.target);
-        adjacency[l.target].push(l.source);
-      });
-
+      positions = {};
       const layers = {};
-      data.nodes.forEach(n => {
-        const layer = LAYERS[n.type] ?? 4;
-        if (!layers[layer]) layers[layer] = [];
-        layers[layer].push(n);
-      });
-
-      const positions = {};
+      data.nodes.forEach(n => { const l=LAYERS[n.type]??4; (layers[l]=layers[l]||[]).push(n); });
       const startY = 60;
-
-      Object.keys(layers).sort((a, b) => a - b).forEach(layerIdx => {
-        const nodes = layers[layerIdx];
-        const y = startY + layerIdx * LAYER_GAP;
-
-        if (parseInt(layerIdx) >= 3) {
-          nodes.sort((a, b) => {
-            const pa = _findParent(a.id, data.links);
-            const pb = _findParent(b.id, data.links);
-            const pxa = positions[pa] ? positions[pa].x : 0;
-            const pxb = positions[pb] ? positions[pb].x : 0;
-            return pxa - pxb;
-          });
-        }
-
-        const totalW = nodes.reduce((sum, n) => {
-          return sum + (NODE_W[n.type] || NODE_W.default) + NODE_GAP;
-        }, -NODE_GAP);
-        let x = (svgW - totalW) / 2;
-
-        nodes.forEach(n => {
-          const w = NODE_W[n.type] || NODE_W.default;
-          positions[n.id] = { x: x + w / 2, y, w, h: NODE_H[n.type] || NODE_H.default };
-          x += w + NODE_GAP;
+      Object.keys(layers).sort((a,b)=>a-b).forEach(li => {
+        const nodes=layers[li], y=startY+li*LAYER_GAP;
+        if(parseInt(li)>=3) nodes.sort((a,b)=>{
+          const pa=_parent(a.id,data.links), pb=_parent(b.id,data.links);
+          return (positions[pa]?.x||0)-(positions[pb]?.x||0);
         });
+        const totalW=nodes.reduce((s,n)=>(NODE_W[n.type]||NODE_W.default)+NODE_GAP+s,-NODE_GAP);
+        let x=(W-totalW)/2;
+        nodes.forEach(n=>{ const w=NODE_W[n.type]||NODE_W.default; positions[n.id]={x:x+w/2,y,w,h:NODE_H[n.type]||NODE_H.default}; x+=w+NODE_GAP; });
       });
 
-      const numaNodes = data.nodes.filter(n => n.type === 'numa_node');
-      if (numaNodes.length > 0) {
-        numaNodes.forEach(numa => {
-          const children = _findDescendants(numa.id, data.links, positions);
-          if (children.length === 0) return;
-          const allPos = [positions[numa.id], ...children.map(id => positions[id]).filter(Boolean)];
-          const minX = Math.min(...allPos.map(p => p.x - (p.w || 60))) - 20;
-          const maxX = Math.max(...allPos.map(p => p.x + (p.w || 60))) + 20;
-          const minY = Math.min(...allPos.map(p => p.y)) - 30;
-          const maxY = Math.max(...allPos.map(p => p.y + (p.h || 40))) + 20;
-
-          g.append('rect')
-            .attr('class', 'numa-group')
-            .attr('x', minX).attr('y', minY)
-            .attr('width', maxX - minX).attr('height', maxY - minY);
-          g.append('text')
-            .attr('class', 'numa-label')
-            .attr('x', minX + 10).attr('y', minY + 16)
-            .text(numa.name + (numa.attrs?.memory_mb ? ` (${Math.round(numa.attrs.memory_mb / 1024)}GB)` : ''));
-        });
-      }
-
-      const linkGroup = g.append('g');
-      const visibleLinks = data.links.filter(l => positions[l.source] && positions[l.target]);
-
-      const linkElements = linkGroup.selectAll('path')
-        .data(visibleLinks)
-        .join('path')
-        .attr('class', 'link-line')
-        .attr('d', d => _elbowPath(d, positions))
-        .attr('stroke', d => {
-          if (d.type === 'pcie') return '#e94560';
-          if (d.type === 'memory') return '#3b82f6';
-          if (d.type === 'upi') return '#f0c040';
-          return '#555';
-        })
-        .attr('stroke-width', d => {
-          if (d.type === 'internal') return 1.5;
-          if (!d.bandwidth_gbps) return 2;
-          return Math.max(2, Math.min(6, d.bandwidth_gbps / 5));
-        })
-        .attr('stroke-dasharray', d => d.type === 'internal' ? '4,3' : null)
-        .attr('stroke-opacity', d => d.type === 'internal' ? 0.4 : 0.7);
-
-      linkGroup.selectAll('text')
-        .data(visibleLinks.filter(l => l.bandwidth_gbps))
-        .join('text')
-        .attr('class', 'link-bw')
-        .attr('x', d => (positions[d.source].x + positions[d.target].x) / 2 + 8)
-        .attr('y', d => (positions[d.source].y + positions[d.target].y) / 2 + 16)
-        .text(d => `${d.bandwidth_gbps} GB/s`);
-
-      const nodeGroup = g.append('g');
-      const nodeElements = nodeGroup.selectAll('g')
-        .data(data.nodes.filter(n => positions[n.id] && n.type !== 'numa_node'))
-        .join('g')
-        .attr('transform', d => {
-          const p = positions[d.id];
-          return `translate(${p.x - p.w / 2}, ${p.y - p.h / 2})`;
-        });
-
-      nodeElements.append('rect')
-        .attr('class', 'node-rect')
-        .attr('width', d => positions[d.id].w)
-        .attr('height', d => positions[d.id].h)
-        .attr('fill', d => COLORS[d.type] || '#666')
-        .attr('stroke', d => d3.color(COLORS[d.type] || '#666').brighter(0.5))
-        .attr('opacity', 0.85);
-
-      nodeElements.append('text')
-        .attr('class', 'node-label')
-        .attr('x', d => positions[d.id].w / 2)
-        .attr('y', d => d.type === 'pcie_root_port' ? positions[d.id].h / 2 + 3 : 16)
-        .text(d => {
-          if (d.type === 'pcie_root_port') return '';
-          const name = d.name;
-          const maxLen = Math.floor((positions[d.id].w - 8) / 6);
-          return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
-        });
-
-      nodeElements.filter(d => d.type !== 'pcie_root_port')
-        .append('text')
-        .attr('class', 'node-sublabel')
-        .attr('x', d => positions[d.id].w / 2)
-        .attr('y', d => 30)
-        .text(d => {
-          if (d.attrs?.bdf) return d.attrs.bdf;
-          return LABELS[d.type] || '';
-        });
-
-      nodeElements.classed('node-not-traceable', d => !TRACEABLE_TYPES.has(d.type));
-
-      currentNodeElements = nodeElements;
-      currentLinkElements = linkElements;
-
-      nodeElements
-        .on('click', (event, d) => {
-          event.stopPropagation();
-          if (TRACEABLE_TYPES.has(d.type)) {
-            handleNodeClick(d, nodeElements, linkElements);
-          } else {
-            showNodeInfo(d);
-          }
-        })
-        .on('mouseover', (event, d) => showTooltip(event, d))
-        .on('mouseout', hideTooltip);
-
-      svg.on('click', () => clearAll());
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') clearAll();
+      // NUMA groups
+      data.nodes.filter(n=>n.type==='numa_node').forEach(numa=>{
+        const ch=_descendants(numa.id,data.links);
+        if(!ch.length)return;
+        const all=[positions[numa.id],...ch.map(id=>positions[id]).filter(Boolean)];
+        const x1=Math.min(...all.map(p=>p.x-(p.w||60)))-20, x2=Math.max(...all.map(p=>p.x+(p.w||60)))+20;
+        const y1=Math.min(...all.map(p=>p.y))-30, y2=Math.max(...all.map(p=>p.y+(p.h||40)))+20;
+        g.append('rect').attr('class','numa-group').attr('x',x1).attr('y',y1).attr('width',x2-x1).attr('height',y2-y1);
+        g.append('text').attr('class','numa-label').attr('x',x1+10).attr('y',y1+16)
+          .text(numa.name+(numa.attrs?.memory_mb?` (${Math.round(numa.attrs.memory_mb/1024)}GB)`:''));
       });
+
+      // Links
+      const vis=data.links.filter(l=>positions[l.source]&&positions[l.target]);
+      const linkG=g.append('g');
+      currentLinkEls=linkG.selectAll('path').data(vis).join('path')
+        .attr('class','link-line')
+        .attr('d',d=>_elbow(d))
+        .attr('stroke',d=>d.type==='pcie'?'#e94560':d.type==='memory'?'#3b82f6':d.type==='upi'?'#f0c040':'#555')
+        .attr('stroke-width',d=>d.type==='internal'?1.5:Math.max(2,Math.min(6,(d.bandwidth_gbps||0)/5+1)))
+        .attr('stroke-dasharray',d=>d.type==='internal'?'4,3':null)
+        .attr('stroke-opacity',d=>d.type==='internal'?0.3:0.6);
+
+      linkG.selectAll('text.link-bw').data(vis.filter(l=>l.bandwidth_gbps)).join('text')
+        .attr('class','link-bw')
+        .attr('x',d=>(positions[d.source].x+positions[d.target].x)/2+10)
+        .attr('y',d=>(positions[d.source].y+positions[d.target].y)/2+14)
+        .text(d=>`${d.bandwidth_gbps} GB/s`);
+
+      // Edge numbers layer (empty, filled on trace)
+      currentEdgeNums = g.append('g').attr('class','edge-nums');
+
+      // Nodes
+      const nodeG=g.append('g');
+      currentNodeEls=nodeG.selectAll('g').data(data.nodes.filter(n=>positions[n.id]&&n.type!=='numa_node')).join('g')
+        .attr('transform',d=>{const p=positions[d.id];return `translate(${p.x-p.w/2},${p.y-p.h/2})`;});
+      currentNodeEls.append('rect').attr('class','node-rect')
+        .attr('width',d=>positions[d.id].w).attr('height',d=>positions[d.id].h)
+        .attr('fill',d=>COLORS[d.type]||'#666')
+        .attr('stroke',d=>d3.color(COLORS[d.type]||'#666').brighter(0.5)).attr('opacity',0.85);
+      currentNodeEls.append('text').attr('class','node-label')
+        .attr('x',d=>positions[d.id].w/2).attr('y',d=>d.type==='pcie_root_port'?positions[d.id].h/2+3:16)
+        .text(d=>{if(d.type==='pcie_root_port')return'';const n=d.name,m=Math.floor((positions[d.id].w-8)/6);return n.length>m?n.slice(0,m-1)+'…':n;});
+      currentNodeEls.filter(d=>d.type!=='pcie_root_port').append('text').attr('class','node-sublabel')
+        .attr('x',d=>positions[d.id].w/2).attr('y',30).text(d=>d.attrs?.bdf||LABELS[d.type]||'');
+
+      currentNodeEls.classed('node-not-traceable',d=>!TRACEABLE.has(d.type));
+
+      currentNodeEls.on('click',(e,d)=>{e.stopPropagation();if(TRACEABLE.has(d.type))handleClick(d);else showInfo(d);})
+        .on('contextmenu',(e,d)=>{if(TRACEABLE.has(d.type)){e.preventDefault();showCtx(e,d);}})
+        .on('mouseover',(e,d)=>showTip(e,d)).on('mouseout',hideTip);
+
+      svg.on('click',()=>{clearAll();hideCtx();});
+      document.addEventListener('keydown',e=>{if(e.key==='Escape')clearAll();});
     }
 
-    function _elbowPath(d, positions) {
-      const src = positions[d.source];
-      const tgt = positions[d.target];
-      if (!src || !tgt) return '';
-
-      const x1 = src.x;
-      const y1 = src.y + (src.h || 40) / 2;
-      const x2 = tgt.x;
-      const y2 = tgt.y - (tgt.h || 40) / 2;
-
-      const midY = (y1 + y2) / 2;
-
-      if (Math.abs(x1 - x2) < 2) {
-        return `M${x1},${y1} L${x2},${y2}`;
-      }
-
-      return `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`;
+    function _elbow(d){
+      const s=positions[d.source],t=positions[d.target];
+      if(!s||!t)return'';
+      const x1=s.x,y1=s.y+(s.h||40)/2,x2=t.x,y2=t.y-(t.h||40)/2,my=(y1+y2)/2;
+      return Math.abs(x1-x2)<2?`M${x1},${y1}L${x2},${y2}`:`M${x1},${y1}L${x1},${my}L${x2},${my}L${x2},${y2}`;
     }
+    function _parent(id,links){for(const l of links)if(l.target===id)return l.source;return null;}
+    function _descendants(id,links){const r=new Set(),q=[id];while(q.length){const c=q.shift();for(const l of links)if(l.source===c&&!r.has(l.target)&&positions[l.target]){r.add(l.target);q.push(l.target);}}return[...r];}
 
-    function _findParent(nodeId, links) {
-      for (const l of links) {
-        if (l.target === nodeId) return l.source;
-      }
-      return null;
-    }
-
-    function _findDescendants(nodeId, links, positions) {
-      const result = new Set();
-      const queue = [nodeId];
-      while (queue.length > 0) {
-        const current = queue.shift();
-        for (const l of links) {
-          if (l.source === current && !result.has(l.target) && positions[l.target]) {
-            result.add(l.target);
-            queue.push(l.target);
-          }
-        }
-      }
-      return [...result];
-    }
-
-    function handleNodeClick(d, nodeSelection, linkSelection) {
-      if (selectedNodes.length === 0) {
-        selectedNodes = [d];
-        nodeSelection.classed('node-source', n => n.id === d.id);
-        nodeSelection.classed('node-dest', false);
-        linkSelection.classed('trace-path', false);
-        document.getElementById('trace-panel').classList.remove('active');
-        updateSelectionBar();
-        showNodeInfo(d);
-      } else if (selectedNodes.length === 1) {
-        if (d.id === selectedNodes[0].id) return;
+    // === Selection & Trace ===
+    function handleClick(d) {
+      if (selectedNodes.length===0) {
+        selectedNodes=[d];
+        currentNodeEls.classed('node-source',n=>n.id===d.id).classed('node-dest',false);
+        currentLinkEls.classed('trace-path',false);
+        currentEdgeNums.selectAll('*').remove();
+        updateSelBar();
+        showInfo(d);
+        switchTab('info');
+      } else if (selectedNodes.length===1) {
+        if(d.id===selectedNodes[0].id)return;
         selectedNodes.push(d);
-        nodeSelection.classed('node-dest', n => n.id === d.id);
-        updateSelectionBar();
-        tracePath(selectedNodes[0].id, selectedNodes[1].id, nodeSelection, linkSelection);
+        currentNodeEls.classed('node-dest',n=>n.id===d.id);
+        updateSelBar();
+        doTrace(selectedNodes[0].id,selectedNodes[1].id);
       }
     }
 
-    function updateSelectionBar() {
-      const status = document.getElementById('sel-status');
-      const clearBtn = document.getElementById('sel-clear');
-      if (selectedNodes.length === 0) {
-        status.innerHTML = 'Click a device to start trace (GPU, NPU, NVMe, NIC, Memory)';
-        clearBtn.style.display = 'none';
-      } else if (selectedNodes.length === 1) {
-        status.innerHTML = `<span class="src-badge">SRC: ${selectedNodes[0].name}</span> → <span style="color:#888">click destination...</span>`;
-        clearBtn.style.display = 'inline';
-      } else {
-        status.innerHTML = `<span class="src-badge">SRC: ${selectedNodes[0].name}</span> → <span class="dest-badge">DST: ${selectedNodes[1].name}</span>`;
-        clearBtn.style.display = 'inline';
-      }
-    }
+    async function doTrace(src,dst) {
+      const r=await(await fetch(`/api/trace?source=${src}&destination=${dst}`)).json();
+      if(r.path?.length>1){
+        const ps=new Set(r.path);
+        currentNodeEls.classed('node-on-path',n=>ps.has(n.id)&&n.id!==src&&n.id!==dst);
+        const edges=new Set();
+        for(let i=0;i<r.path.length-1;i++){edges.add(`${r.path[i]}|${r.path[i+1]}`);edges.add(`${r.path[i+1]}|${r.path[i]}`);}
+        currentLinkEls.classed('trace-path',l=>edges.has(`${l.source}|${l.target}`)||edges.has(`${l.target}|${l.source}`));
 
-    function clearAll() {
-      selectedNodes = [];
-      if (currentNodeElements) {
-        currentNodeElements.classed('node-selected', false);
-        currentNodeElements.classed('node-source', false);
-        currentNodeElements.classed('node-dest', false);
-      }
-      if (currentLinkElements) {
-        currentLinkElements.classed('trace-path', false);
-      }
-      document.getElementById('sidebar').classList.remove('active');
-      document.getElementById('trace-panel').classList.remove('active');
-      updateSelectionBar();
-    }
-
-    async function tracePath(src, dst, nodeSelection, linkSelection) {
-      const resp = await fetch(`/api/trace?source=${src}&destination=${dst}`);
-      const result = await resp.json();
-
-      linkSelection.classed('trace-path', false);
-      nodeSelection.classed('node-selected', false);
-
-      if (result.path?.length > 1) {
-        const pathSet = new Set(result.path);
-        nodeSelection.classed('node-selected', n =>
-          pathSet.has(n.id) && n.id !== src && n.id !== dst
-        );
-        const edges = new Set();
-        for (let i = 0; i < result.path.length - 1; i++) {
-          edges.add(`${result.path[i]}|${result.path[i+1]}`);
-          edges.add(`${result.path[i+1]}|${result.path[i]}`);
-        }
-        linkSelection.classed('trace-path', l => edges.has(`${l.source}|${l.target}`) || edges.has(`${l.target}|${l.source}`));
-      }
-      showTraceResult(result);
-      document.getElementById('sidebar').classList.remove('active');
-    }
-
-    function showNodeInfo(d) {
-      const sb = document.getElementById('sidebar');
-      sb.classList.add('active');
-      let html = `<h2>${d.name}</h2>`;
-      html += `<div class="field"><span class="label">Type</span><br><span class="value">${LABELS[d.type] || d.type}</span></div>`;
-      if (d.attrs) {
-        for (const [k, v] of Object.entries(d.attrs)) {
-          if (v === null || v === undefined || v === '' || v === -1) continue;
-          const display = typeof v === 'object' ? JSON.stringify(v) : v;
-          html += `<div class="field"><span class="label">${k}</span><br><span class="value">${display}</span></div>`;
+        // Edge numbers
+        currentEdgeNums.selectAll('*').remove();
+        for(let i=0;i<r.path.length-1;i++){
+          const s=positions[r.path[i]],t=positions[r.path[i+1]];
+          if(s&&t){
+            currentEdgeNums.append('circle').attr('cx',(s.x+t.x)/2).attr('cy',(s.y+(s.h||40)/2+t.y-(t.h||40)/2)/2)
+              .attr('r',8).attr('fill','#e94560');
+            currentEdgeNums.append('text').attr('class','edge-num')
+              .attr('x',(s.x+t.x)/2).attr('y',(s.y+(s.h||40)/2+t.y-(t.h||40)/2)/2+3)
+              .attr('text-anchor','middle').attr('fill','white').attr('font-size','9px')
+              .text(i+1);
+          }
         }
       }
-      html += `<br><div style="color:#666;font-size:11px;">Click another node to trace path</div>`;
-      sb.innerHTML = html;
+
+      traceHistory.unshift({src:r.source_name,dst:r.destination_name,bw:r.e2e_bandwidth_gbps,lat:r.e2e_latency_ns,srcId:src,dstId:dst,result:r});
+      if(traceHistory.length>10)traceHistory.pop();
+
+      showTraceResult(r);
+      switchTab('trace');
     }
 
-    function showTraceResult(result) {
-      const panel = document.getElementById('trace-panel');
-      panel.classList.add('active');
+    function showTraceResult(r) {
+      if(!r.segments?.length){setContent('<div style="color:#e94560;padding:20px">No path found</div>');return;}
+      const numaS=r.same_numa?'<span style="color:#22c55e">same</span>':'<span style="color:#f59e0b">cross</span>';
+      const maxBw=Math.max(...r.segments.map(s=>s.theoretical_bw_gbps||0),1);
+      let h='<div class="sb-section"><div class="sb-title">'+r.source_name+' → '+r.destination_name+'</div>';
+      h+='<div class="summary-cards">';
+      h+=`<div class="s-card"><div class="s-card-label">Bandwidth</div><div class="s-card-value">${r.e2e_bandwidth_gbps} GB/s</div></div>`;
+      h+=`<div class="s-card"><div class="s-card-label">Latency</div><div class="s-card-value">${r.e2e_latency_ns}ns</div></div>`;
+      h+=`<div class="s-card"><div class="s-card-label">NUMA</div><div class="s-card-value">${numaS}</div></div>`;
+      h+='</div>';
+      if(r.bottleneck)h+=`<div style="color:#e94560;font-size:11px;margin-bottom:8px;">⚠ Bottleneck: ${r.bottleneck}</div>`;
+      h+='</div>';
 
-      if (!result.segments?.length) {
-        panel.innerHTML = '<h3 style="color:#e94560;">No path found</h3>';
-        return;
+      // Path diagram
+      h+='<div class="sb-section"><div class="sb-title">Path</div>';
+      for(let i=0;i<r.segments.length;i++){
+        const s=r.segments[i],isBn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
+        if(i===0)h+=`<div class="path-step"><div class="path-node is-src">${s.from_name}</div></div>`;
+        const lt=(s.link_type||'').includes('pcie')?'PCIe':(s.link_type||'').includes('memory')?'DDR':'→';
+        const bwPct=s.theoretical_bw_gbps?Math.round(100*(s.effective_bw_gbps||0)/maxBw):0;
+        let bwBar=s.theoretical_bw_gbps?`<span class="bw-bar-container"><span class="bw-bar-fill" style="width:${bwPct}%"></span></span> ${s.effective_bw_gbps||0}/${s.theoretical_bw_gbps} GB/s`:'';
+        h+=`<div class="path-step"><div class="path-link"><b>${i+1}</b> ${lt} · ${s.latency_ns}ns ${bwBar} ${isBn?'<span style="color:#e94560">◄</span>':''}</div></div>`;
+        const isLast=i===r.segments.length-1;
+        h+=`<div class="path-step"><div class="path-node ${isLast?'is-dst':''} ${isBn?'is-bn':''}">${s.to_name}</div></div>`;
       }
+      h+='</div>';
 
-      const numaStr = result.same_numa
-        ? '<span style="color:#22c55e;">✅ same-NUMA</span>'
-        : '<span style="color:#f59e0b;">⚠️ cross-NUMA</span>';
-      const maxBw = Math.max(...result.segments.map(s => s.theoretical_bw_gbps || 0), 1);
+      // Breakdown table
+      h+='<div class="sb-section"><div class="sb-title">Breakdown</div>';
+      h+='<table class="bd-table"><tr><th>#</th><th>Segment</th><th>BW</th><th>Eff</th><th>Lat</th></tr>';
+      for(let i=0;i<r.segments.length;i++){
+        const s=r.segments[i],isBn=r.bottleneck&&s.from_name&&r.bottleneck.includes(s.from_name);
+        const bwT=s.theoretical_bw_gbps?s.theoretical_bw_gbps+'':'-';
+        const bwE=s.effective_bw_gbps?s.effective_bw_gbps+'':'-';
+        h+=`<tr class="${isBn?'is-bn':''}" data-seg="${i}" onmouseenter="hlEdge(${i})" onmouseleave="unhlEdge(${i})">`;
+        h+=`<td>${i+1}</td><td style="font-size:10px">${s.from_name} → ${s.to_name}</td><td>${bwT}</td><td>${bwE}</td><td>${s.latency_ns}ns</td></tr>`;
+      }
+      h+=`<tr style="border-top:2px solid #444"><td></td><td><b>E2E</b></td><td></td><td><b>${r.e2e_bandwidth_gbps}</b></td><td><b>${r.e2e_latency_ns}ns</b></td></tr>`;
+      h+='</table></div>';
 
-      let html = `<button id="trace-close" onclick="clearAll()">✕ Close & Reset</button>`;
-      html += `<div class="trace-header">
-        <h3>${result.source_name} → ${result.destination_name}</h3>
-        <div class="trace-summary">
-          <div class="summary-card"><div class="card-label">E2E Bandwidth</div><div class="card-value">${result.e2e_bandwidth_gbps} GB/s</div></div>
-          <div class="summary-card"><div class="card-label">E2E Latency</div><div class="card-value">${result.e2e_latency_ns}ns</div></div>
-          <div class="summary-card bottleneck-card"><div class="card-label">Bottleneck</div><div class="card-value">${result.bottleneck || 'None'}</div></div>
-          <div class="summary-card numa-card"><div class="card-label">NUMA</div><div class="card-value">${numaStr}</div></div>
-        </div>
-      </div>`;
+      setContent(h);
+    }
 
-      html += '<div class="trace-body">';
-
-      // 경로 다이어그램
-      html += '<div class="trace-path-diagram">';
-      for (let i = 0; i < result.segments.length; i++) {
-        const s = result.segments[i];
-        const isBn = result.bottleneck && s.from_name && result.bottleneck.includes(s.from_name);
-        if (i === 0) {
-          html += `<div class="path-node ${isBn ? 'is-bottleneck' : ''}">${s.from_name}</div>`;
+    // === Edge highlight from breakdown hover ===
+    let tracePathData = null;
+    function hlEdge(i) {
+      if(!traceHistory.length)return;
+      const r=traceHistory[0].result;
+      if(!r.path||i>=r.path.length-1)return;
+      const s=r.path[i],t=r.path[i+1];
+      currentLinkEls.filter(l=>(l.source===s&&l.target===t)||(l.source===t&&l.target===s))
+        .attr('stroke','#fff').attr('stroke-width',8);
+    }
+    function unhlEdge(i) {
+      currentLinkEls.attr('stroke',d=>d.type==='pcie'?'#e94560':d.type==='memory'?'#3b82f6':d.type==='upi'?'#f0c040':'#555')
+        .attr('stroke-width',d=>d.type==='internal'?1.5:Math.max(2,Math.min(6,(d.bandwidth_gbps||0)/5+1)));
+      // Re-apply trace path
+      if(traceHistory.length){
+        const r=traceHistory[0].result;
+        if(r.path?.length>1){
+          const edges=new Set();
+          for(let j=0;j<r.path.length-1;j++){edges.add(`${r.path[j]}|${r.path[j+1]}`);edges.add(`${r.path[j+1]}|${r.path[j]}`);}
+          currentLinkEls.classed('trace-path',l=>edges.has(`${l.source}|${l.target}`)||edges.has(`${l.target}|${l.source}`));
         }
-        const linkType = (s.link_type || '').includes('pcie') ? 'PCIe' : (s.link_type || '').includes('memory') ? 'DDR' : '→';
-        const bwStr = s.theoretical_bw_gbps ? ` ${s.theoretical_bw_gbps} GB/s` : '';
-        html += `<div class="path-link">${linkType}${bwStr} · ${s.latency_ns}ns</div>`;
-        const nextBn = result.bottleneck && s.to_name && result.bottleneck.includes(s.to_name);
-        html += `<div class="path-node ${nextBn ? 'is-bottleneck' : ''}">${s.to_name}</div>`;
       }
-      html += '</div>';
+    }
 
-      // 테이블
-      html += '<div class="trace-table-container">';
-      html += '<table><tr><th>#</th><th>Segment</th><th>Link</th><th>Theo BW</th><th>Eff BW</th><th>Efficiency</th><th>BW</th><th>Latency</th></tr>';
-      for (let i = 0; i < result.segments.length; i++) {
-        const s = result.segments[i];
-        const theo = s.theoretical_bw_gbps;
-        const eff = s.effective_bw_gbps;
-        const linkType = (s.link_type || '').includes('pcie') ? '<span style="color:#e94560">PCIe</span>'
-          : (s.link_type || '').includes('memory') ? '<span style="color:#3b82f6">DDR</span>'
-          : '<span style="color:#666">int</span>';
-        const theoStr = theo ? `${theo} GB/s` : '<span style="color:#666">—</span>';
-        const effStr = eff ? `${eff} GB/s` : '<span style="color:#666">—</span>';
-        const effPct = theo && eff ? `${(eff / theo * 100).toFixed(0)}%` : '<span style="color:#666">—</span>';
+    // === Context menu ===
+    function showCtx(e,d){ctxTarget=d;const m=document.getElementById('ctx-menu');m.style.display='block';m.style.left=e.pageX+'px';m.style.top=e.pageY+'px';}
+    function hideCtx(){document.getElementById('ctx-menu').style.display='none';}
+    function ctxSetSource(){hideCtx();if(!ctxTarget)return;clearAll();selectedNodes=[ctxTarget];currentNodeEls.classed('node-source',n=>n.id===ctxTarget.id);updateSelBar();}
+    function ctxSetDest(){hideCtx();if(!ctxTarget||!selectedNodes.length)return;selectedNodes.push(ctxTarget);currentNodeEls.classed('node-dest',n=>n.id===ctxTarget.id);updateSelBar();doTrace(selectedNodes[0].id,selectedNodes[1].id);}
+    function ctxTraceToMem(){hideCtx();if(!ctxTarget)return;clearAll();const memId='mc_0';selectedNodes=[ctxTarget,{id:memId,name:'Memory'}];currentNodeEls.classed('node-source',n=>n.id===ctxTarget.id);doTrace(ctxTarget.id,memId);}
+    function ctxShowInfo(){hideCtx();if(ctxTarget)showInfo(ctxTarget);switchTab('info');}
 
-        let barHtml = '';
-        if (theo > 0) {
-          const barW = 80;
-          const effW = Math.round(barW * (eff || 0) / maxBw);
-          const theoW = Math.round(barW * theo / maxBw);
-          barHtml = `<span class="bw-bar bw-bar-eff" style="width:${effW}px"></span><span class="bw-bar bw-bar-bg" style="width:${theoW - effW}px"></span>`;
-        }
+    // === Sidebar ===
+    function switchTab(name){
+      document.querySelectorAll('.sidebar-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+      if(name==='trace'&&traceHistory.length) showTraceResult(traceHistory[0].result);
+      else if(name==='history') showHistory();
+      else if(name==='info'&&!document.getElementById('sidebar-content').innerHTML.includes('sb-title'))
+        setContent('<div style="color:#666;font-size:12px;padding:20px;text-align:center;">Click a node to see info</div>');
+    }
 
-        const isBn = result.bottleneck && s.from_name && result.bottleneck.includes(s.from_name);
-        const bnMark = isBn ? ' <span class="bottleneck">◄</span>' : '';
-
-        html += `<tr><td style="color:#666">${i + 1}</td><td>${s.from_name} → ${s.to_name}${bnMark}</td>`;
-        html += `<td>${linkType}</td><td>${theoStr}</td><td>${effStr}</td><td>${effPct}</td><td>${barHtml}</td><td>${s.latency_ns}ns</td></tr>`;
+    function showInfo(d){
+      let h=`<div class="sb-section"><div class="sb-title">${d.name}</div>`;
+      h+=`<div class="sb-field"><span class="sb-label">Type</span><br><span class="sb-value">${LABELS[d.type]||d.type}</span></div>`;
+      h+=`<div class="sb-field"><span class="sb-label">ID</span><br><span class="sb-value">${d.id}</span></div>`;
+      if(d.attrs)for(const[k,v]of Object.entries(d.attrs)){
+        if(v===null||v===undefined||v===''||v===-1)continue;
+        h+=`<div class="sb-field"><span class="sb-label">${k}</span><br><span class="sb-value">${typeof v==='object'?JSON.stringify(v):v}</span></div>`;
       }
-      html += `<tr style="border-top:2px solid #444"><td></td><td><b>E2E Total</b></td><td></td><td></td>`;
-      html += `<td><b style="color:#06b6d4">${result.e2e_bandwidth_gbps} GB/s</b></td><td></td><td></td>`;
-      html += `<td><b style="color:#06b6d4">${result.e2e_latency_ns}ns</b></td></tr>`;
-      html += '</table></div></div>';
-
-      panel.innerHTML = html;
+      h+='</div>';
+      setContent(h);
+      switchTab('info');
     }
 
-
-    function showTooltip(event, d) {
-      const t = document.getElementById('tooltip');
-      let html = `<b>${d.name}</b><br>${LABELS[d.type] || d.type}`;
-      if (d.attrs?.bandwidth_gbps) html += `<br>${d.attrs.bandwidth_gbps} GB/s`;
-      if (d.attrs?.link) html += `<br>${d.attrs.link}`;
-      if (d.attrs?.iommu_group >= 0) html += `<br>IOMMU Group: ${d.attrs.iommu_group}`;
-      if (d.attrs?.bars) html += `<br>${d.attrs.bars}`;
-      t.innerHTML = html;
-      t.style.display = 'block';
-      t.style.left = (event.pageX + 14) + 'px';
-      t.style.top = (event.pageY - 10) + 'px';
-    }
-    function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
-
-    function renderLegend() {
-      const types = ['numa_node', 'socket', 'memory_controller', 'pcie_root_complex', 'pcie_root_port', 'gpu', 'npu', 'nvme', 'nic'];
-      document.getElementById('legend').innerHTML = types.map(t =>
-        `<div class="item"><div class="swatch" style="background:${COLORS[t]}"></div>${LABELS[t]}</div>`
-      ).join('');
+    function showHistory(){
+      if(!traceHistory.length){setContent('<div style="color:#666;font-size:12px;padding:20px;text-align:center;">No trace history</div>');return;}
+      let h='<div class="sb-section"><div class="sb-title">Trace History</div>';
+      traceHistory.forEach((t,i)=>{
+        h+=`<div class="history-item" onclick="replayTrace(${i})"><span>${t.src} → ${t.dst}</span><span class="hi-bw">${t.bw} GB/s · ${t.lat}ns</span></div>`;
+      });
+      h+='</div>';
+      setContent(h);
     }
 
-    async function reloadTopology() {
-      await fetch('/api/topology/reload', { method: 'POST' });
-      await loadTopology();
+    function replayTrace(i){
+      const t=traceHistory[i];
+      clearAll();
+      selectedNodes=[{id:t.srcId,name:t.src},{id:t.dstId,name:t.dst}];
+      currentNodeEls.classed('node-source',n=>n.id===t.srcId).classed('node-dest',n=>n.id===t.dstId);
+      updateSelBar();
+      // Re-highlight path
+      const r=t.result;
+      if(r.path?.length>1){
+        const ps=new Set(r.path),edges=new Set();
+        currentNodeEls.classed('node-on-path',n=>ps.has(n.id)&&n.id!==t.srcId&&n.id!==t.dstId);
+        for(let j=0;j<r.path.length-1;j++){edges.add(`${r.path[j]}|${r.path[j+1]}`);edges.add(`${r.path[j+1]}|${r.path[j]}`);}
+        currentLinkEls.classed('trace-path',l=>edges.has(`${l.source}|${l.target}`)||edges.has(`${l.target}|${l.source}`));
+      }
+      showTraceResult(r);
+      switchTab('trace');
     }
+
+    function setContent(html){document.getElementById('sidebar-content').innerHTML=html;}
+
+    // === Selection bar ===
+    function updateSelBar(){
+      const s=document.getElementById('sel-status'),c=document.getElementById('sel-clear');
+      if(!selectedNodes.length){s.innerHTML='Click device or use Trace button';c.style.display='none';}
+      else if(selectedNodes.length===1){s.innerHTML=`<span class="src-badge">SRC: ${selectedNodes[0].name||selectedNodes[0].id}</span> → <span style="color:#666">click destination...</span>`;c.style.display='inline';}
+      else{s.innerHTML=`<span class="src-badge">SRC: ${selectedNodes[0].name||selectedNodes[0].id}</span> → <span class="dst-badge">DST: ${selectedNodes[1].name||selectedNodes[1].id}</span>`;c.style.display='inline';}
+    }
+
+    function clearAll(){
+      selectedNodes=[];
+      if(currentNodeEls)currentNodeEls.classed('node-source node-dest node-on-path node-selected',false);
+      if(currentLinkEls)currentLinkEls.classed('trace-path',false);
+      if(currentEdgeNums)currentEdgeNums.selectAll('*').remove();
+      updateSelBar();hideCtx();
+    }
+
+    // === Toolbar ===
+    function toggleFilter(el){
+      el.classList.toggle('active');
+      activeFilters=new Set([...document.querySelectorAll('.tb-chip.active[data-filter]')].map(c=>c.dataset.filter));
+      applyFilters();
+    }
+    function applyFilters(){
+      if(!currentNodeEls)return;
+      const visible=new Set();
+      activeFilters.forEach(f=>(FILTER_MAP[f]||[]).forEach(t=>visible.add(t)));
+      // Always show infra
+      ['pcie_root_complex','pcie_root_port','socket','memory_controller'].forEach(t=>visible.add(t));
+      currentNodeEls.attr('opacity',d=>visible.has(d.type)?1:0.1);
+    }
+    function toggleIOMMU(el){el.classList.toggle('active');/* TODO: IOMMU overlay */}
+    function searchNodes(q){
+      if(!currentNodeEls)return;
+      if(!q){currentNodeEls.selectAll('.node-rect').attr('filter',null);return;}
+      q=q.toLowerCase();
+      currentNodeEls.selectAll('.node-rect').attr('filter',function(){
+        const d=d3.select(this.parentNode).datum();
+        const match=(d.name||'').toLowerCase().includes(q)||(d.attrs?.bdf||'').includes(q)||(d.id||'').includes(q);
+        return match?'brightness(1.5)':'brightness(0.3)';
+      });
+    }
+    function openTraceDropdown(){/* TODO: dropdown trace selector */alert('Use click or right-click on nodes to trace.\nOr use CLI: ariadne trace gpu:0 memory');}
+
+    // === Utils ===
+    function showTip(e,d){const t=document.getElementById('tooltip');let h=`<b>${d.name}</b><br>${LABELS[d.type]||d.type}`;if(d.attrs?.bandwidth_gbps)h+=`<br>${d.attrs.bandwidth_gbps} GB/s`;if(d.attrs?.link)h+=`<br>${d.attrs.link}`;if(d.attrs?.iommu_group>=0)h+=`<br>IOMMU: ${d.attrs.iommu_group}`;if(d.attrs?.bdf)h+=`<br>${d.attrs.bdf}`;t.innerHTML=h;t.style.display='block';t.style.left=(e.pageX+12)+'px';t.style.top=(e.pageY-10)+'px';}
+    function hideTip(){document.getElementById('tooltip').style.display='none';}
+    function renderLegend(){const ts=['numa_node','gpu','npu','nvme','nic','pcie_root_complex','pcie_root_port','memory_controller'];document.getElementById('legend').innerHTML=ts.map(t=>`<div class="item"><div class="swatch" style="background:${COLORS[t]}"></div>${LABELS[t]}</div>`).join('');}
+    async function reloadTopology(){await fetch('/api/topology/reload',{method:'POST'});await loadTopology();}
 
     loadTopology();
   </script>
