@@ -88,6 +88,18 @@ def load(
   render_topology(topo)
 
 
+@app.command()
+def serve(
+  host: str = typer.Option("0.0.0.0", help="Bind host"),
+  port: int = typer.Option(8000, help="Bind port"),
+):
+  """Web UI 서버를 시작한다."""
+  import uvicorn
+  console.print(f"[bold]Ariadne Web UI[/] → [link]http://localhost:{port}[/link]")
+  console.print("[dim]Ctrl+C to stop[/]")
+  uvicorn.run("ariadne.api.server:app", host=host, port=port, log_level="warning")
+
+
 def _interactive_select(topo, source_hint: str | None, dest_hint: str | None):
   """fuzzy 검색으로 source와 destination을 선택."""
   from InquirerPy import inquirer
