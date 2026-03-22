@@ -71,7 +71,8 @@
     .edge-line.trace-hl { stroke:#e94560 !important; stroke-width:4 !important; stroke-dasharray:none !important; }
     .edge-line.seg-hl { stroke:#fff !important; stroke-width:5 !important; stroke-dasharray:none !important; }
     .edge-line:hover { stroke-width:5; stroke:#fff; }
-    .edge-bw { font-size:8px; fill:#22d3ee; font-weight:bold; pointer-events:none; }
+    .edge-bw { font-size:9px; fill:#22d3ee; font-weight:bold; pointer-events:none; display:none; }
+    .edge-group:hover .edge-bw { display:block; }
 
     /* Context menu */
     #ctx { position:absolute; background:#1a1a2e; border:1px solid #444; border-radius:6px; padding:4px 0; display:none; z-index:50; min-width:200px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
@@ -306,26 +307,52 @@ function drawEdges() {
       path: { x1, y1, x2, y2, mx },
     };
 
-    // SVG path
+    // Edge 그룹 (path + label)
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'edge-group');
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', () => showEdgeDetail(eId));
+
+    // 투명 히트 영역
+    const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const pathD = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
+    hitPath.setAttribute('d', pathD);
+    hitPath.setAttribute('stroke', 'transparent');
+    hitPath.setAttribute('stroke-width', '16');
+    hitPath.setAttribute('fill', 'none');
+    g.appendChild(hitPath);
+
+    // 보이는 edge
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     pathEl.setAttribute('d', pathD);
     pathEl.setAttribute('class', `edge-line ${edgeType}`);
     pathEl.setAttribute('id', eId);
-    pathEl.style.pointerEvents = 'stroke';
-    pathEl.style.cursor = 'pointer';
-    pathEl.addEventListener('click', () => showEdgeDetail(eId));
-    svg.appendChild(pathEl);
+    g.appendChild(pathEl);
 
-    // BW 라벨 — 세로 구간 옆
+    // BW 라벨 — hover 시에만 표시, 배경 박스 포함
     if (e.data.bandwidth_gbps) {
+      const labelX = mx + LAYOUT.bwLabelOffset;
+      const labelY = (y1 + y2) / 2;
+      // 배경
+      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bg.setAttribute('x', labelX - 2);
+      bg.setAttribute('y', labelY - 8);
+      bg.setAttribute('width', 32);
+      bg.setAttribute('height', 14);
+      bg.setAttribute('rx', 3);
+      bg.setAttribute('fill', '#0f0f1a');
+      bg.setAttribute('class', 'edge-bw');
+      g.appendChild(bg);
+      // 텍스트
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', mx + LAYOUT.bwLabelOffset);
-      text.setAttribute('y', (y1 + y2) / 2 + 3);
+      text.setAttribute('x', labelX);
+      text.setAttribute('y', labelY + 3);
       text.setAttribute('class', 'edge-bw');
       text.textContent = e.data.bandwidth_gbps;
-      svg.appendChild(text);
+      g.appendChild(text);
     }
+
+    svg.appendChild(g);
   });
 }
 
