@@ -23,9 +23,13 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 | PCIe 트리 수집 (BDF, speed/width, BAR, IOMMU 그룹, SR-IOV) | ✅ |
 | 터미널 토폴로지 출력 (P/E-core 구분, summary 모드) | ✅ |
 | E2E 경로 추적 + BW/latency breakdown (CLI fuzzy 선택) | ✅ |
-| Web UI: 가로 트리 뷰 + SVG edge + 접기/줌 | ✅ |
+| Web UI: 전체 토폴로지 가로 트리 뷰 (CPU P/E-core + PCIe + SVG edge) | ✅ |
+| Web UI: 접기/펼치기 + 줌(Fit/+/-/Ctrl+스크롤) | ✅ |
 | Web UI: Trace 선택 (클릭/우클릭/검색) + sidebar breakdown | ✅ |
 | Web UI: 트리 ↔ sidebar 양방향 hover/클릭 연동 | ✅ |
+| Web UI: Sidebar hide/show 토글 + 드래그 리사이즈 | ✅ |
+| Web UI: Trace History (최대 10개, 클릭 복원) | ✅ |
+| Web UI: Traceable/non-traceable 노드 시각 구분 | ✅ |
 | JSON snapshot 저장/로드 (오프라인 분석, 팀 공유) | ✅ |
 | Transfer Mode (RDMA, GPUDirect, P2P, NVLink, UCIe) | 예정 |
 | PCIe Capability 분석 (ACS/ARI/ATS → 경로 변화) | 예정 |
@@ -40,8 +44,7 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 
 | 항목 | 설명 |
 |------|------|
-| Sidebar hide/show | 사이드바 접기/펼치기 토글. 그래프 영역 최대화 |
-| Sidebar 크기 조절 | 그래프 ↔ sidebar 경계 드래그로 너비 조정 |
+| Edge hover 겹침 수정 | 같은 bus를 공유하는 edge 겹침 구간에서 hover 정확도 |
 | Trace path 스크롤 | 경로가 길 때 Path/Breakdown 영역 독립 스크롤 |
 | 디바이스 필터 | toolbar에 GPU/NPU/NVMe/NIC/Others 토글 |
 | 드롭다운 Trace 선택 | toolbar에서 fuzzy 검색으로 src/dst 선택 |
@@ -111,7 +114,9 @@ ariadne/
 │   │   ├── model/              ← NetworkX 기반 토폴로지 그래프 + Pydantic 타입
 │   │   ├── analyzer/           ← E2E 경로 추적 + BW/latency 분석
 │   │   ├── api/                ← FastAPI REST 서버
-│   │   ├── web/                ← Web UI (HTML/CSS/JS + SVG)
+│   │   ├── web/
+│   │   │   ├── templates/      ← HTML (Jinja2)
+│   │   │   └── static/         ← CSS + JS (core.js, ui.js)
 │   │   ├── viz/                ← Rich 터미널 시각화
 │   │   └── cli/                ← Typer CLI
 │   └── tests/
@@ -152,3 +157,5 @@ ariadne/
 | [docs/DESIGN.md](docs/DESIGN.md) | 설계 — 아키텍처 (Engine/UI 분리), 입출력 모델, 기술 스택, 패키지 구조 |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | 데이터 모델 — 7개 레이어별 S/W 측정 가능 항목, 모델 파라미터, 시뮬레이션 레벨 |
 | [docs/COMPARISON.md](docs/COMPARISON.md) | 비교 분석 — hwloc, pcicrawler, numatop, gem5, SimBricks 등 7개 도구 |
+| [docs/UI_GUIDE.md](docs/UI_GUIDE.md) | UI 구현 원칙, 색상 체계, 레이아웃 상수, 인터랙션 패턴 |
+| [docs/UI_FEATURES.md](docs/UI_FEATURES.md) | 현재 구현된 UI 기능 목록 + 알려진 이슈 + 개선 예정 |
