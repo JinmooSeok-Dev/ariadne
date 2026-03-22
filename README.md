@@ -29,11 +29,21 @@ pip install -e ".[dev]"
 cd ariadne-core
 source .venv/bin/activate
 
-# 현재 시스템 토폴로지 보기 (일반 유저)
+# 현재 시스템 토폴로지 보기 (CPU/NUMA + PCIe 트리 + IOMMU 그룹)
 ariadne show
 
 # 상세 정보 포함 (sudo 권장)
 sudo $(which ariadne) show
+
+# E2E 경로 추적 — 인터랙티브 fuzzy 선택
+ariadne trace
+
+# E2E 경로 추적 — 직접 지정
+ariadne trace gpu:0 memory       # GPU → Host Memory
+ariadne trace gpu:0 nvme:0       # GPU → NVMe (P2P 경로)
+ariadne trace gpu:0 nic:0        # GPU → NIC
+ariadne trace gpu:0 gpu:1        # GPU-to-GPU
+ariadne trace 0000:01:00.0 memory  # BDF 직접 지정도 가능
 
 # JSON snapshot 저장/로드 (오프라인 분석, 팀 공유용)
 sudo $(which ariadne) snapshot my-server.json
@@ -59,8 +69,9 @@ ariadne/
 │   ├── ariadne/
 │   │   ├── collector/          ← sysfs/procfs 기반 토폴로지 수집
 │   │   ├── model/              ← NetworkX 기반 토폴로지 그래프 + Pydantic 타입
+│   │   ├── analyzer/           ← E2E 경로 추적 + BW/latency 분석
 │   │   ├── viz/                ← Rich 터미널 시각화
-│   │   └── cli/                ← Typer CLI
+│   │   └── cli/                ← Typer CLI (InquirerPy fuzzy 선택)
 │   └── tests/
 └── docs/                       ← 설계 문서
     ├── REQUIREMENTS.md
@@ -74,8 +85,8 @@ ariadne/
 | Phase | 목표 | 상태 |
 |-------|------|:----:|
 | 1 | CPU/NUMA 토폴로지 수집 + 터미널 출력 | ✅ |
-| 2 | PCIe 트리 + IOMMU 그룹 + JSON snapshot | |
-| 3 | E2E 경로 추적 + BW/latency breakdown | |
+| 2 | PCIe 트리 + IOMMU 그룹 + JSON snapshot | ✅ |
+| 3 | E2E 경로 추적 + BW/latency breakdown | ✅ |
 | 4 | Web UI (FastAPI + React + D3.js) | |
 | 5 | 다중 흐름 경합 시뮬레이션 (DES) | |
 | 6 | VM 오버레이 (QEMU/libvirt/KubeVirt) | |
@@ -90,7 +101,7 @@ ariadne/
 |------|------|------|
 | 토폴로지 수집 | sysfs/procfs 직접 파싱 | lspci, nvidia-smi, rdma/ibstat |
 | 그래프 모델 | NetworkX, Pydantic | |
-| 터미널 출력 | Rich, Typer | |
+| 터미널 출력 | Rich, Typer, InquirerPy | |
 | 시뮬레이션 | | SimPy |
 | API 서버 | | FastAPI |
 | Web UI | | React + D3.js/Cytoscape.js |
