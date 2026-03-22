@@ -7,121 +7,115 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #eee; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f1a; color: #eee; }
 
     #header {
-      padding: 12px 24px;
-      background: #16213e;
+      padding: 10px 24px;
+      background: #1a1a2e;
       border-bottom: 1px solid #333;
       display: flex;
       align-items: center;
       gap: 16px;
     }
     #header h1 { font-size: 18px; color: #e94560; }
-    #header .hostname { color: #999; font-size: 14px; }
+    #header .hostname { color: #888; font-size: 14px; }
+    #header .stats { color: #666; font-size: 12px; margin-left: auto; }
     #header button {
-      margin-left: auto;
-      padding: 6px 16px;
+      padding: 5px 14px;
       background: #e94560;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
     }
-    #header button:hover { background: #c73e54; }
 
-    #main { display: flex; height: calc(100vh - 48px); }
+    #main { display: flex; height: calc(100vh - 44px); }
 
-    #graph-container {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-    }
+    #graph-container { flex: 1; position: relative; overflow: hidden; }
 
     #sidebar {
-      width: 360px;
-      background: #16213e;
+      width: 380px;
+      background: #1a1a2e;
       border-left: 1px solid #333;
       overflow-y: auto;
       padding: 16px;
       display: none;
     }
     #sidebar.active { display: block; }
-    #sidebar h2 { font-size: 15px; color: #e94560; margin-bottom: 12px; }
-    #sidebar .field { margin-bottom: 8px; }
-    #sidebar .label { color: #888; font-size: 12px; }
-    #sidebar .value { color: #eee; font-size: 14px; }
-    #sidebar table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    #sidebar th, #sidebar td {
-      padding: 6px 8px;
-      text-align: left;
-      font-size: 12px;
-      border-bottom: 1px solid #333;
-    }
-    #sidebar th { color: #888; }
-    #sidebar .bottleneck { color: #e94560; font-weight: bold; }
+    #sidebar h2 { font-size: 14px; color: #e94560; margin-bottom: 10px; }
+    #sidebar .field { margin-bottom: 6px; }
+    #sidebar .label { color: #666; font-size: 11px; }
+    #sidebar .value { color: #ddd; font-size: 13px; }
 
     #trace-panel {
       position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #16213e;
-      border-top: 1px solid #333;
-      padding: 16px 24px;
+      bottom: 0; left: 0; right: 360px;
+      background: #1a1a2e;
+      border-top: 2px solid #e94560;
+      padding: 14px 24px;
       display: none;
-      max-height: 40vh;
+      max-height: 35vh;
       overflow-y: auto;
     }
     #trace-panel.active { display: block; }
-    #trace-panel h3 { font-size: 14px; color: #e94560; margin-bottom: 8px; }
-
-    .node-label {
-      font-size: 11px;
-      fill: #ccc;
-      pointer-events: none;
+    #trace-panel h3 { font-size: 13px; color: #e94560; margin-bottom: 8px; }
+    #trace-panel table { width: 100%; border-collapse: collapse; }
+    #trace-panel th, #trace-panel td {
+      padding: 4px 8px; text-align: left; font-size: 11px; border-bottom: 1px solid #333;
     }
-    .link { stroke-opacity: 0.6; }
-    .link-label { font-size: 9px; fill: #888; }
+    #trace-panel th { color: #888; }
+    .bottleneck { color: #e94560; font-weight: bold; }
 
-    #legend {
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      background: rgba(22, 33, 62, 0.9);
-      padding: 12px;
-      border-radius: 6px;
-      font-size: 12px;
-    }
-    #legend .item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-    #legend .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .numa-group { fill: rgba(240, 192, 64, 0.06); stroke: #f0c040; stroke-width: 1.5; stroke-dasharray: 6,3; rx: 12; }
+    .numa-label { fill: #f0c040; font-size: 13px; font-weight: bold; }
+
+    .node-rect { rx: 6; cursor: pointer; stroke-width: 1.5; }
+    .node-rect:hover { filter: brightness(1.3); }
+    .node-label { font-size: 10px; fill: #ddd; pointer-events: none; text-anchor: middle; }
+    .node-sublabel { font-size: 9px; fill: #888; pointer-events: none; text-anchor: middle; }
+
+    .link-line { stroke-opacity: 0.5; fill: none; }
+    .link-bw { font-size: 8px; fill: #888; text-anchor: middle; }
+
+    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 3 !important; }
+    .node-selected .node-rect { stroke: #e94560 !important; stroke-width: 3 !important; }
 
     .tooltip {
       position: absolute;
-      background: #16213e;
+      background: #1a1a2e;
       border: 1px solid #555;
       padding: 8px 12px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 11px;
       pointer-events: none;
       display: none;
       z-index: 100;
+      max-width: 300px;
     }
 
-    .trace-path { stroke: #e94560 !important; stroke-opacity: 1 !important; stroke-width: 4 !important; }
-    .node-selected { stroke: #e94560; stroke-width: 3; }
+    #legend {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(26, 26, 46, 0.95);
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    #legend .item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+    #legend .swatch { width: 14px; height: 10px; border-radius: 2px; }
 
     #instructions {
       position: absolute;
-      top: 16px;
+      bottom: 12px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(22, 33, 62, 0.9);
-      padding: 8px 16px;
+      background: rgba(26, 26, 46, 0.9);
+      padding: 6px 14px;
       border-radius: 4px;
-      font-size: 12px;
-      color: #888;
+      font-size: 11px;
+      color: #666;
     }
   </style>
 </head>
@@ -129,313 +123,347 @@
   <div id="header">
     <h1>Ariadne</h1>
     <span class="hostname" id="hostname"></span>
+    <span class="stats" id="stats"></span>
     <button onclick="reloadTopology()">Reload</button>
   </div>
 
   <div id="main">
     <div id="graph-container">
       <svg id="graph"></svg>
-      <div id="instructions">Click a node to inspect · Click two nodes to trace path · Scroll to zoom</div>
       <div id="legend"></div>
       <div class="tooltip" id="tooltip"></div>
+      <div id="instructions">Click node to inspect · Click two nodes to trace · Scroll to zoom · Drag to pan</div>
       <div id="trace-panel"></div>
     </div>
     <div id="sidebar"></div>
   </div>
 
   <script>
-    const TYPE_COLORS = {
+    const COLORS = {
       numa_node: '#f0c040',
       socket: '#4ecdc4',
+      memory_controller: '#3b82f6',
       pcie_root_complex: '#e94560',
-      pcie_root_port: '#a855f7',
+      pcie_root_port: '#7c3aed',
       gpu: '#22c55e',
       npu: '#06b6d4',
-      nic: '#8b5cf6',
+      nic: '#a855f7',
       nvme: '#f59e0b',
       pcie_endpoint: '#6b7280',
-      memory_controller: '#3b82f6',
     };
 
-    const TYPE_LABELS = {
-      numa_node: 'NUMA Node',
+    const LABELS = {
+      numa_node: 'NUMA',
       socket: 'Socket',
+      memory_controller: 'Mem Ctrl',
       pcie_root_complex: 'Root Complex',
       pcie_root_port: 'Root Port',
       gpu: 'GPU',
       npu: 'NPU',
       nic: 'NIC',
       nvme: 'NVMe',
-      pcie_endpoint: 'Endpoint',
-      memory_controller: 'Mem Ctrl',
+      pcie_endpoint: 'Device',
     };
 
-    const NODE_SIZES = {
-      numa_node: 28,
-      socket: 22,
-      pcie_root_complex: 24,
-      pcie_root_port: 10,
-      gpu: 20,
-      npu: 20,
-      nic: 18,
-      nvme: 16,
-      pcie_endpoint: 12,
-      memory_controller: 16,
+    const LAYERS = {
+      numa_node: 0,
+      socket: 1,
+      memory_controller: 1,
+      pcie_root_complex: 2,
+      pcie_root_port: 3,
+      gpu: 4, npu: 4, nic: 4, nvme: 4, pcie_endpoint: 4,
     };
+
+    const NODE_W = { default: 120, pcie_root_port: 24, memory_controller: 100 };
+    const NODE_H = { default: 44, pcie_root_port: 20, memory_controller: 36 };
+    const LAYER_GAP = 100;
+    const NODE_GAP = 16;
 
     let graphData = null;
     let selectedNodes = [];
-    let simulation = null;
 
     async function loadTopology() {
       const resp = await fetch('/api/topology/graph');
       graphData = await resp.json();
-
       const topoResp = await fetch('/api/topology');
       const topo = await topoResp.json();
       document.getElementById('hostname').textContent = topo.hostname;
-
-      renderGraph(graphData);
+      document.getElementById('stats').textContent =
+        `${topo.numa_nodes.length} NUMA · ${topo.cpu_cores.length} cores · ${topo.pci_devices.length} PCI devices`;
+      renderHierarchy(graphData);
       renderLegend();
     }
 
-    function renderGraph(data) {
+    function renderHierarchy(data) {
       const container = document.getElementById('graph-container');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
+      const svgW = container.clientWidth;
+      const svgH = container.clientHeight;
 
       d3.select('#graph').selectAll('*').remove();
-
-      const svg = d3.select('#graph')
-        .attr('width', width)
-        .attr('height', height);
-
+      const svg = d3.select('#graph').attr('width', svgW).attr('height', svgH);
       const g = svg.append('g');
 
-      const zoom = d3.zoom()
-        .scaleExtent([0.1, 4])
-        .on('zoom', (event) => g.attr('transform', event.transform));
-      svg.call(zoom);
+      svg.call(d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => g.attr('transform', e.transform)));
 
-      simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links).id(d => d.id).distance(d => {
-          if (d.type === 'pcie') return 120;
-          if (d.type === 'internal') return 80;
-          return 100;
-        }))
-        .force('charge', d3.forceManyBody().strength(-400))
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(d => (NODE_SIZES[d.type] || 12) + 10));
+      const adjacency = {};
+      data.links.forEach(l => {
+        if (!adjacency[l.source]) adjacency[l.source] = [];
+        if (!adjacency[l.target]) adjacency[l.target] = [];
+        adjacency[l.source].push(l.target);
+        adjacency[l.target].push(l.source);
+      });
 
-      const link = g.append('g')
-        .selectAll('line')
-        .data(data.links)
+      const layers = {};
+      data.nodes.forEach(n => {
+        const layer = LAYERS[n.type] ?? 4;
+        if (!layers[layer]) layers[layer] = [];
+        layers[layer].push(n);
+      });
+
+      const positions = {};
+      const startY = 60;
+
+      Object.keys(layers).sort((a, b) => a - b).forEach(layerIdx => {
+        const nodes = layers[layerIdx];
+        const y = startY + layerIdx * LAYER_GAP;
+
+        if (parseInt(layerIdx) >= 3) {
+          nodes.sort((a, b) => {
+            const pa = _findParent(a.id, data.links);
+            const pb = _findParent(b.id, data.links);
+            const pxa = positions[pa] ? positions[pa].x : 0;
+            const pxb = positions[pb] ? positions[pb].x : 0;
+            return pxa - pxb;
+          });
+        }
+
+        const totalW = nodes.reduce((sum, n) => {
+          return sum + (NODE_W[n.type] || NODE_W.default) + NODE_GAP;
+        }, -NODE_GAP);
+        let x = (svgW - totalW) / 2;
+
+        nodes.forEach(n => {
+          const w = NODE_W[n.type] || NODE_W.default;
+          positions[n.id] = { x: x + w / 2, y, w, h: NODE_H[n.type] || NODE_H.default };
+          x += w + NODE_GAP;
+        });
+      });
+
+      const numaNodes = data.nodes.filter(n => n.type === 'numa_node');
+      if (numaNodes.length > 0) {
+        numaNodes.forEach(numa => {
+          const children = _findDescendants(numa.id, data.links, positions);
+          if (children.length === 0) return;
+          const allPos = [positions[numa.id], ...children.map(id => positions[id]).filter(Boolean)];
+          const minX = Math.min(...allPos.map(p => p.x - (p.w || 60))) - 20;
+          const maxX = Math.max(...allPos.map(p => p.x + (p.w || 60))) + 20;
+          const minY = Math.min(...allPos.map(p => p.y)) - 30;
+          const maxY = Math.max(...allPos.map(p => p.y + (p.h || 40))) + 20;
+
+          g.append('rect')
+            .attr('class', 'numa-group')
+            .attr('x', minX).attr('y', minY)
+            .attr('width', maxX - minX).attr('height', maxY - minY);
+          g.append('text')
+            .attr('class', 'numa-label')
+            .attr('x', minX + 10).attr('y', minY + 16)
+            .text(numa.name + (numa.attrs?.memory_mb ? ` (${Math.round(numa.attrs.memory_mb / 1024)}GB)` : ''));
+        });
+      }
+
+      const linkGroup = g.append('g');
+      const linkElements = linkGroup.selectAll('line')
+        .data(data.links.filter(l => positions[l.source] && positions[l.target]))
         .join('line')
-        .attr('class', 'link')
-        .attr('stroke', d => d.type === 'pcie' ? '#e94560' : '#444')
+        .attr('class', 'link-line')
+        .attr('x1', d => positions[d.source].x)
+        .attr('y1', d => positions[d.source].y + (positions[d.source].h || 40) / 2)
+        .attr('x2', d => positions[d.target].x)
+        .attr('y2', d => positions[d.target].y - (positions[d.target].h || 40) / 2)
+        .attr('stroke', d => d.type === 'pcie' ? '#e9456088' : '#ffffff22')
         .attr('stroke-width', d => {
           if (!d.bandwidth_gbps) return 1;
-          return Math.max(1, Math.min(6, d.bandwidth_gbps / 5));
+          return Math.max(1, Math.min(5, d.bandwidth_gbps / 8));
         })
-        .attr('stroke-dasharray', d => d.type === 'internal' ? '4,4' : null);
+        .attr('stroke-dasharray', d => d.type === 'internal' ? '3,3' : null);
 
-      const linkLabel = g.append('g')
-        .selectAll('text')
-        .data(data.links.filter(d => d.bandwidth_gbps))
+      linkGroup.selectAll('text')
+        .data(data.links.filter(l => l.bandwidth_gbps && positions[l.source] && positions[l.target]))
         .join('text')
-        .attr('class', 'link-label')
+        .attr('class', 'link-bw')
+        .attr('x', d => (positions[d.source].x + positions[d.target].x) / 2)
+        .attr('y', d => (positions[d.source].y + positions[d.target].y) / 2 + 12)
         .text(d => `${d.bandwidth_gbps} GB/s`);
 
-      const node = g.append('g')
-        .selectAll('g')
-        .data(data.nodes)
+      const nodeGroup = g.append('g');
+      const nodeElements = nodeGroup.selectAll('g')
+        .data(data.nodes.filter(n => positions[n.id] && n.type !== 'numa_node'))
         .join('g')
-        .attr('cursor', 'pointer')
-        .call(d3.drag()
-          .on('start', dragstarted)
-          .on('drag', dragged)
-          .on('end', dragended));
-
-      node.append('circle')
-        .attr('r', d => NODE_SIZES[d.type] || 12)
-        .attr('fill', d => TYPE_COLORS[d.type] || '#666')
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 1.5)
-        .attr('opacity', 0.9);
-
-      node.append('text')
-        .attr('class', 'node-label')
-        .attr('dy', d => (NODE_SIZES[d.type] || 12) + 14)
-        .attr('text-anchor', 'middle')
-        .text(d => {
-          if (d.type === 'pcie_root_port') return '';
-          return d.name.length > 25 ? d.name.slice(0, 22) + '...' : d.name;
+        .attr('transform', d => {
+          const p = positions[d.id];
+          return `translate(${p.x - p.w / 2}, ${p.y - p.h / 2})`;
         });
 
-      node.on('click', (event, d) => {
-        event.stopPropagation();
-        handleNodeClick(d, node, link);
-      });
+      nodeElements.append('rect')
+        .attr('class', 'node-rect')
+        .attr('width', d => positions[d.id].w)
+        .attr('height', d => positions[d.id].h)
+        .attr('fill', d => COLORS[d.type] || '#666')
+        .attr('stroke', d => d3.color(COLORS[d.type] || '#666').brighter(0.5))
+        .attr('opacity', 0.85);
 
-      node.on('mouseover', (event, d) => showTooltip(event, d));
-      node.on('mouseout', () => hideTooltip());
+      nodeElements.append('text')
+        .attr('class', 'node-label')
+        .attr('x', d => positions[d.id].w / 2)
+        .attr('y', d => d.type === 'pcie_root_port' ? positions[d.id].h / 2 + 3 : 16)
+        .text(d => {
+          if (d.type === 'pcie_root_port') return '';
+          const name = d.name;
+          const maxLen = Math.floor((positions[d.id].w - 8) / 6);
+          return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
+        });
 
-      svg.on('click', () => {
-        clearSelection(node, link);
-      });
+      nodeElements.filter(d => d.type !== 'pcie_root_port')
+        .append('text')
+        .attr('class', 'node-sublabel')
+        .attr('x', d => positions[d.id].w / 2)
+        .attr('y', d => 30)
+        .text(d => {
+          if (d.attrs?.bdf) return d.attrs.bdf;
+          return LABELS[d.type] || '';
+        });
 
-      simulation.on('tick', () => {
-        link
-          .attr('x1', d => d.source.x)
-          .attr('y1', d => d.source.y)
-          .attr('x2', d => d.target.x)
-          .attr('y2', d => d.target.y);
+      nodeElements
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          handleNodeClick(d, nodeElements, linkElements);
+        })
+        .on('mouseover', (event, d) => showTooltip(event, d))
+        .on('mouseout', hideTooltip);
 
-        linkLabel
-          .attr('x', d => (d.source.x + d.target.x) / 2)
-          .attr('y', d => (d.source.y + d.target.y) / 2);
+      svg.on('click', () => clearSelection(nodeElements, linkElements));
+    }
 
-        node.attr('transform', d => `translate(${d.x},${d.y})`);
-      });
+    function _findParent(nodeId, links) {
+      for (const l of links) {
+        if (l.target === nodeId) return l.source;
+      }
+      return null;
+    }
+
+    function _findDescendants(nodeId, links, positions) {
+      const result = new Set();
+      const queue = [nodeId];
+      while (queue.length > 0) {
+        const current = queue.shift();
+        for (const l of links) {
+          if (l.source === current && !result.has(l.target) && positions[l.target]) {
+            result.add(l.target);
+            queue.push(l.target);
+          }
+        }
+      }
+      return [...result];
     }
 
     function handleNodeClick(d, nodeSelection, linkSelection) {
       selectedNodes.push(d);
-
       if (selectedNodes.length === 1) {
         showNodeInfo(d);
-        nodeSelection.selectAll('circle')
-          .classed('node-selected', n => n.id === d.id);
+        nodeSelection.classed('node-selected', n => n.id === d.id);
       }
-
       if (selectedNodes.length === 2) {
-        const src = selectedNodes[0];
-        const dst = selectedNodes[1];
+        tracePath(selectedNodes[0].id, selectedNodes[1].id, nodeSelection, linkSelection);
         selectedNodes = [];
-        tracePath(src.id, dst.id, nodeSelection, linkSelection);
       }
     }
 
-    async function tracePath(sourceId, destId, nodeSelection, linkSelection) {
-      const resp = await fetch(`/api/trace?source=${sourceId}&destination=${destId}`);
+    async function tracePath(src, dst, nodeSelection, linkSelection) {
+      const resp = await fetch(`/api/trace?source=${src}&destination=${dst}`);
       const result = await resp.json();
 
       linkSelection.classed('trace-path', false);
-      nodeSelection.selectAll('circle').classed('node-selected', false);
+      nodeSelection.classed('node-selected', false);
 
-      if (result.path && result.path.length > 1) {
+      if (result.path?.length > 1) {
         const pathSet = new Set(result.path);
-        nodeSelection.selectAll('circle')
-          .classed('node-selected', n => pathSet.has(n.id));
-
-        const pathEdges = new Set();
+        nodeSelection.classed('node-selected', n => pathSet.has(n.id));
+        const edges = new Set();
         for (let i = 0; i < result.path.length - 1; i++) {
-          pathEdges.add(`${result.path[i]}-${result.path[i+1]}`);
-          pathEdges.add(`${result.path[i+1]}-${result.path[i]}`);
+          edges.add(`${result.path[i]}|${result.path[i+1]}`);
+          edges.add(`${result.path[i+1]}|${result.path[i]}`);
         }
-        linkSelection.classed('trace-path', l =>
-          pathEdges.has(`${l.source.id}-${l.target.id}`)
-        );
+        linkSelection.classed('trace-path', l => edges.has(`${l.source}|${l.target}`) || edges.has(`${l.target}|${l.source}`));
       }
-
       showTraceResult(result);
     }
 
     function showNodeInfo(d) {
-      const sidebar = document.getElementById('sidebar');
-      sidebar.classList.add('active');
-
+      const sb = document.getElementById('sidebar');
+      sb.classList.add('active');
       let html = `<h2>${d.name}</h2>`;
-      html += `<div class="field"><span class="label">Type</span><br><span class="value">${TYPE_LABELS[d.type] || d.type}</span></div>`;
-      html += `<div class="field"><span class="label">ID</span><br><span class="value">${d.id}</span></div>`;
-
+      html += `<div class="field"><span class="label">Type</span><br><span class="value">${LABELS[d.type] || d.type}</span></div>`;
       if (d.attrs) {
-        const keys = Object.keys(d.attrs);
-        for (const key of keys) {
-          const val = d.attrs[key];
-          if (val === null || val === undefined || val === '') continue;
-          html += `<div class="field"><span class="label">${key}</span><br><span class="value">${JSON.stringify(val)}</span></div>`;
+        for (const [k, v] of Object.entries(d.attrs)) {
+          if (v === null || v === undefined || v === '' || v === -1) continue;
+          const display = typeof v === 'object' ? JSON.stringify(v) : v;
+          html += `<div class="field"><span class="label">${k}</span><br><span class="value">${display}</span></div>`;
         }
       }
-
-      html += `<br><p style="color:#666;font-size:11px;">Click another node to trace path</p>`;
-      sidebar.innerHTML = html;
+      html += `<br><div style="color:#666;font-size:11px;">Click another node to trace path</div>`;
+      sb.innerHTML = html;
     }
 
     function showTraceResult(result) {
       const panel = document.getElementById('trace-panel');
       panel.classList.add('active');
-
-      let html = `<h3>Flow: ${result.source_name} → ${result.destination_name}</h3>`;
-
-      if (result.segments && result.segments.length > 0) {
-        html += '<table><tr><th>Segment</th><th>Theoretical BW</th><th>Effective BW</th><th>Latency</th></tr>';
-        for (const seg of result.segments) {
-          const theoBw = seg.theoretical_bw_gbps ? `${seg.theoretical_bw_gbps} GB/s` : 'internal';
-          const effBw = seg.effective_bw_gbps ? `${seg.effective_bw_gbps} GB/s` : '—';
-          html += `<tr><td>${seg.from_name} → ${seg.to_name}</td><td>${theoBw}</td><td>${effBw}</td><td>${seg.latency_ns}ns</td></tr>`;
+      let html = `<h3>${result.source_name} → ${result.destination_name}</h3>`;
+      if (result.segments?.length) {
+        html += '<table><tr><th>Segment</th><th>Theo BW</th><th>Eff BW</th><th>Latency</th></tr>';
+        for (const s of result.segments) {
+          html += `<tr><td>${s.from_name} → ${s.to_name}</td>`;
+          html += `<td>${s.theoretical_bw_gbps ? s.theoretical_bw_gbps + ' GB/s' : 'internal'}</td>`;
+          html += `<td>${s.effective_bw_gbps ? s.effective_bw_gbps + ' GB/s' : '—'}</td>`;
+          html += `<td>${s.latency_ns}ns</td></tr>`;
         }
-        html += `<tr style="border-top:2px solid #555"><td><strong>E2E</strong></td><td></td><td><strong>${result.e2e_bandwidth_gbps} GB/s</strong></td><td><strong>${result.e2e_latency_ns}ns</strong></td></tr>`;
-        if (result.bottleneck) {
-          html += `<tr><td class="bottleneck">Bottleneck</td><td colspan="3" class="bottleneck">${result.bottleneck}</td></tr>`;
-        }
+        html += `<tr style="border-top:2px solid #555"><td><b>E2E</b></td><td></td>`;
+        html += `<td><b>${result.e2e_bandwidth_gbps} GB/s</b></td><td><b>${result.e2e_latency_ns}ns</b></td></tr>`;
+        if (result.bottleneck) html += `<tr><td class="bottleneck">Bottleneck</td><td colspan="3" class="bottleneck">${result.bottleneck}</td></tr>`;
         html += '</table>';
-
-        html += result.same_numa
-          ? '<p style="color:#22c55e;margin-top:8px;">✅ same-NUMA</p>'
-          : '<p style="color:#f59e0b;margin-top:8px;">⚠️ cross-NUMA</p>';
+        html += result.same_numa ? '<p style="color:#22c55e;margin-top:6px;">✅ same-NUMA</p>' : '<p style="color:#f59e0b;margin-top:6px;">⚠️ cross-NUMA</p>';
       } else {
         html += '<p style="color:#e94560;">No path found</p>';
       }
-
       panel.innerHTML = html;
-
-      const sidebar = document.getElementById('sidebar');
-      sidebar.classList.remove('active');
     }
 
     function clearSelection(nodeSelection, linkSelection) {
       selectedNodes = [];
-      nodeSelection.selectAll('circle').classed('node-selected', false);
+      nodeSelection.classed('node-selected', false);
       linkSelection.classed('trace-path', false);
       document.getElementById('sidebar').classList.remove('active');
       document.getElementById('trace-panel').classList.remove('active');
     }
 
     function showTooltip(event, d) {
-      const tooltip = document.getElementById('tooltip');
-      let text = `<strong>${d.name}</strong><br>${TYPE_LABELS[d.type] || d.type}`;
-      if (d.attrs?.bandwidth_gbps) text += `<br>${d.attrs.bandwidth_gbps} GB/s`;
-      if (d.attrs?.iommu_group >= 0) text += `<br>IOMMU: ${d.attrs.iommu_group}`;
-      if (d.attrs?.bdf) text += `<br>${d.attrs.bdf}`;
-      tooltip.innerHTML = text;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (event.pageX + 12) + 'px';
-      tooltip.style.top = (event.pageY - 12) + 'px';
+      const t = document.getElementById('tooltip');
+      let html = `<b>${d.name}</b><br>${LABELS[d.type] || d.type}`;
+      if (d.attrs?.bandwidth_gbps) html += `<br>${d.attrs.bandwidth_gbps} GB/s`;
+      if (d.attrs?.link) html += `<br>${d.attrs.link}`;
+      if (d.attrs?.iommu_group >= 0) html += `<br>IOMMU Group: ${d.attrs.iommu_group}`;
+      if (d.attrs?.bars) html += `<br>${d.attrs.bars}`;
+      t.innerHTML = html;
+      t.style.display = 'block';
+      t.style.left = (event.pageX + 14) + 'px';
+      t.style.top = (event.pageY - 10) + 'px';
     }
-
-    function hideTooltip() {
-      document.getElementById('tooltip').style.display = 'none';
-    }
+    function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
 
     function renderLegend() {
-      const legend = document.getElementById('legend');
-      const types = ['numa_node', 'socket', 'memory_controller', 'pcie_root_complex', 'gpu', 'npu', 'nvme', 'nic'];
-      let html = '';
-      for (const t of types) {
-        html += `<div class="item"><div class="dot" style="background:${TYPE_COLORS[t]}"></div>${TYPE_LABELS[t]}</div>`;
-      }
-      legend.innerHTML = html;
-    }
-
-    function dragstarted(event, d) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x; d.fy = d.y;
-    }
-    function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
-    function dragended(event, d) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null; d.fy = null;
+      const types = ['numa_node', 'socket', 'memory_controller', 'pcie_root_complex', 'pcie_root_port', 'gpu', 'npu', 'nvme', 'nic'];
+      document.getElementById('legend').innerHTML = types.map(t =>
+        `<div class="item"><div class="swatch" style="background:${COLORS[t]}"></div>${LABELS[t]}</div>`
+      ).join('');
     }
 
     async function reloadTopology() {
