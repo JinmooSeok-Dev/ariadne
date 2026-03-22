@@ -42,9 +42,17 @@ async def get_topology_graph():
   topo = _get_topology()
 
   skip_types = {"cpu_core", "cache", "dram"}
+  # bus 0 직결 칩셋 디바이스 (Root Port 없이 RC에 직접 연결)는 제외
+  chipset_skip = set()
+  for dev in topo.pci_devices:
+    if not dev.parent_bdf and dev.type_name not in ("Host Bridge", "PCI-to-PCI Bridge"):
+      chipset_skip.add(f"pcie_{dev.bdf}")
+
   nodes = []
   for comp in topo.components:
     if comp.type.value in skip_types:
+      continue
+    if comp.id in chipset_skip:
       continue
     node = {
       "id": comp.id,
