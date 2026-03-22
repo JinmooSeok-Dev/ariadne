@@ -36,6 +36,20 @@ bandwidth/latency를 예측하는 시각화 + 시뮬레이션 도구.
 | 다중 흐름 경합 시뮬레이션 (DES) | 예정 |
 | Rebellions NPU 지원 (ATOM+ CA22, ATOM-MAX CA25, REBEL CA21) | ✅ |
 
+### Web UI 개선 예정
+
+| 항목 | 설명 |
+|------|------|
+| Sidebar hide/show | 사이드바 접기/펼치기 토글. 그래프 영역 최대화 |
+| Sidebar 크기 조절 | 그래프 ↔ sidebar 경계 드래그로 너비 조정 |
+| Trace path 스크롤 | 경로가 길 때 Path/Breakdown 영역 독립 스크롤 |
+| 디바이스 필터 | toolbar에 GPU/NPU/NVMe/NIC/Others 토글 |
+| 드롭다운 Trace 선택 | toolbar에서 fuzzy 검색으로 src/dst 선택 |
+| Group Trace (M:N) | 다중 src/dst → 그룹 간 경로 분석 |
+| 멀티 Trace 오버레이 | 여러 trace를 다른 색상으로 동시 표시 |
+| IOMMU 그룹 오버레이 | 같은 IOMMU 그룹 디바이스를 배경색 그룹핑 |
+| Settings What-if | BIOS/커널 설정 변경 → 재시뮬레이션 |
+
 ## 요구사항
 
 - **OS**: Linux (sysfs/procfs 기반 — macOS, Windows 미지원)
