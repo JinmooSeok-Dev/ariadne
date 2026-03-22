@@ -340,9 +340,12 @@ async function doTrace(srcId, dstId) {
   const resp = await fetch(`/api/trace?source=${srcId}&destination=${dstId}`);
   const result = await resp.json();
 
-  // Path highlight
+  // Path highlight — source/destination 클래스 유지
   cy.edges().removeClass('trace-path');
   cy.nodes().removeClass('on-path');
+  // source/destination 클래스 재적용 (덮어씌워짐 방지)
+  if (srcNode) srcNode.addClass('source');
+  if (dstNode) dstNode.addClass('destination');
   if (result.path?.length > 1) {
     const pathSet = new Set(result.path);
     cy.nodes().forEach(n => {

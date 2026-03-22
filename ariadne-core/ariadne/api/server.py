@@ -67,40 +67,18 @@ async def get_topology_graph():
     if not any(c in rp_ids for c in children):
       hide_rps.add(rp_id)
 
+  # NUMA → 자식 매핑 (compound parent 용)
+  numa_children = {}
+  for link in topo.links:
+    for numa_comp in topo.components:
+      if numa_comp.type.value == "numa_node" and numa_comp.id == link.source:
+        numa_children[link.target] = numa_comp.id
+
   # 노드 생성
   visible_ids = set()
   nodes = []
-  for comp in topo.components:
-    if comp.type.value in skip_comp_types:
-      continue
-    if comp.id in chipset_direct:
-      continue
-    if comp.id in hide_rps:
-      continue
-    visible_ids.add(comp.id)
 
-    # NUMA compound node: endpoint의 parent로 사용
-    parent = None
-    if comp.type.value in ("socket", "memory_controller", "pcie_root_complex"):
-      # NUMA node의 자식 찾기
-      for link in topo.links:
-        if link.target == comp.id:
-          for numa_comp in topo.components:
-            if numa_comp.id == link.source and numa_comp.type.value == "numa_node":
-              parent = numa_comp.id
-              break
-
-    nodes.append({
-      "data": {
-        "id": comp.id,
-        "label": comp.name,
-        "type": comp.type.value,
-        "parent": parent,
-        **{k: v for k, v in comp.attrs.items() if v is not None and v != "" and v != -1},
-      }
-    })
-
-  # NUMA 노드도 추가 (compound parent)
+  # NUMA compound parent 먼저 추가
   for comp in topo.components:
     if comp.type.value == "numa_node":
       mem_gb = comp.attrs.get("memory_mb", 0) // 1024 if comp.attrs.get("memory_mb") else 0
@@ -112,6 +90,30 @@ async def get_topology_graph():
         }
       })
       visible_ids.add(comp.id)
+
+  # 나머지 노드
+  for comp in topo.components:
+    if comp.type.value in skip_comp_types:
+      continue
+    if comp.type.value == "numa_node":
+      continue
+    if comp.id in chipset_direct:
+      continue
+    if comp.id in hide_rps:
+      continue
+    visible_ids.add(comp.id)
+
+    parent = numa_children.get(comp.id)
+
+    nodes.append({
+      "data": {
+        "id": comp.id,
+        "label": comp.name,
+        "type": comp.type.value,
+        "parent": parent,
+        **{k: v for k, v in comp.attrs.items() if v is not None and v != "" and v != -1},
+      }
+    })
 
   # Edge 생성 — RP를 건너뛰고 직결
   edges = []
@@ -158,12 +160,32 @@ async def get_topology_graph():
 async def api_trace(source: str, destination: str):
   topo = _get_topology()
   result = trace_path(topo, source, destination)
+
+  # graph에서 숨겨진 RP를 path에서도 제거 (edge matching을 위해)
+  rp_ids = {c.id for c in topo.components if c.type.value == "pcie_root_port"}
+  rp_to_parent = {}
+  rp_to_children = {}
+  for link in topo.links:
+    if link.target in rp_ids:
+      rp_to_parent[link.target] = link.source
+    if link.source in rp_ids:
+      rp_to_children.setdefault(link.source, []).append(link.target)
+
+  hide_rps = set()
+  for rp_id in rp_ids:
+    children = rp_to_children.get(rp_id, [])
+    if not any(c in rp_ids for c in children):
+      hide_rps.add(rp_id)
+
+  # path에서 숨겨진 RP 제거
+  graph_path = [n for n in result.path if n not in hide_rps]
+
   return {
     "source": result.source,
     "destination": result.destination,
     "source_name": result.source_name,
     "destination_name": result.destination_name,
-    "path": result.path,
+    "path": graph_path,
     "segments": result.segments,
     "e2e_bandwidth_gbps": result.e2e_bandwidth_gbps,
     "e2e_latency_ns": result.e2e_latency_ns,
