@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.tree import Tree
 
 from ariadne.model.types import CacheLevel, ComponentType, SystemTopology
+from ariadne.analyzer.trace import TraceResult
 
 console = Console()
 
@@ -198,6 +199,66 @@ def _render_endpoint(parent_tree, ep) -> None:
 
   if ep.is_vf:
     ep_tree.add(f"[dim]Virtual Function[/]")
+
+
+def render_trace(result: TraceResult) -> None:
+  """경로 추적 결과를 터미널에 출력."""
+  if not result.path:
+    console.print("[red]경로를 찾을 수 없습니다.[/]")
+    return
+
+  console.print()
+  console.print(f"[bold]Flow: {result.source_name} → {result.destination_name}[/]")
+  console.print()
+
+  path_parts = []
+  for seg in result.segments:
+    if not path_parts:
+      path_parts.append(seg["from_name"])
+    link_type = seg.get("link_type", "")
+    if "pcie" in str(link_type).lower():
+      speed = seg.get("theoretical_bw_gbps")
+      arrow = f"──PCIe──►" if not speed else f"──PCIe ({speed} GB/s)──►"
+    elif "memory" in str(link_type).lower():
+      arrow = "──DDR──►"
+    else:
+      arrow = "──►"
+    path_parts.append(arrow)
+    path_parts.append(seg["to_name"])
+
+  console.print(f"[dim]Path: {' '.join(path_parts)}[/]")
+  console.print()
+
+  table = Table(title="Breakdown")
+  table.add_column("구간", style="bold")
+  table.add_column("이론 BW", justify="right")
+  table.add_column("실효 BW", justify="right")
+  table.add_column("latency", justify="right")
+
+  for seg in result.segments:
+    seg_name = f"{seg['from_name']} → {seg['to_name']}"
+    theo_bw = f"{seg['theoretical_bw_gbps']} GB/s" if seg.get("theoretical_bw_gbps") else "[dim]internal[/]"
+    eff_bw = f"{seg['effective_bw_gbps']} GB/s" if seg.get("effective_bw_gbps") else "[dim]—[/]"
+    latency = f"{seg['latency_ns']:.0f}ns"
+    table.add_row(seg_name, theo_bw, eff_bw, latency)
+
+  table.add_section()
+
+  e2e_bw = f"[bold]{result.e2e_bandwidth_gbps} GB/s[/]" if result.e2e_bandwidth_gbps > 0 else "[dim]—[/]"
+  e2e_lat = f"[bold]{result.e2e_latency_ns:.0f}ns[/]"
+  table.add_row("[bold]E2E[/]", "", e2e_bw, e2e_lat)
+
+  if result.bottleneck:
+    table.add_row("[bold red]Bottleneck[/]", "", f"[red]{result.bottleneck}[/]", "")
+
+  console.print(table)
+  console.print()
+
+  if result.same_numa:
+    console.print("[green]✅ same-NUMA (cross-NUMA penalty 없음)[/]")
+  else:
+    console.print("[yellow]⚠️ cross-NUMA (추가 latency 반영됨)[/]")
+  console.print()
 
 
 def _sockets_for_node(topo: SystemTopology, node_id: int) -> list[int]:
