@@ -219,7 +219,7 @@ function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const toggle = document.getElementById('sb-toggle');
   sb.classList.toggle('collapsed');
-  toggle.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
+  toggle.textContent = sb.classList.contains('collapsed') ? '◀' : '▶';
 }
 
 function showSidebar() {

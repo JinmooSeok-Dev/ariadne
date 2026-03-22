@@ -153,12 +153,17 @@ function fold(chId, el) {
   el.textContent = folding ? '▶' : '▼';
   const ct = document.getElementById(chId.replace('ch_', 'ct_'));
   if (ct) ct.classList.toggle('hidden', !folding);
+  // 접기/펼치기 후 edge 재그리기 (레이아웃 정착 대기)
+  setTimeout(() => drawEdges(), 50);
 }
 
 // === Edge 렌더링 (SVG) ===
 function drawEdges() {
   const svg = document.getElementById('edge-svg');
   const container = document.getElementById('tree-content');
+  // 측정을 위해 스케일 임시 리셋
+  const savedScale = App.zoomScale;
+  container.style.transform = 'scale(1)';
   const rect = container.getBoundingClientRect();
   svg.setAttribute('width', container.scrollWidth);
   svg.setAttribute('height', container.scrollHeight);
@@ -171,6 +176,9 @@ function drawEdges() {
     registerEdge(e.data, coords);
     svg.appendChild(createEdgeGroup(e.data, coords));
   });
+
+  // 스케일 복구
+  container.style.transform = `scale(${savedScale})`;
 }
 
 function calcEdgeCoords(edgeData, containerRect) {
