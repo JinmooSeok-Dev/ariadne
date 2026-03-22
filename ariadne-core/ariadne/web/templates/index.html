@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <title>Ariadne</title>
   <style>
+    :root {
+      --child-indent: 60px;
+      --child-gap: 2px;
+      --child-pad: 4px;
+      --node-min-w: 160px;
+      --edge-w: 2.5px;
+      --edge-pcie-w: 3px;
+      --edge-hl-w: 4px;
+      --edge-seg-w: 5px;
+    }
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',system-ui,sans-serif; background:#0f0f1a; color:#eee; overflow:hidden; }
 
@@ -32,7 +42,7 @@
       display:inline-flex; align-items:center; gap:4px;
       padding:5px 10px; border-radius:5px; cursor:pointer;
       white-space:nowrap; font-size:11px;
-      border:1.5px solid transparent; flex-shrink:0; min-width:160px;
+      border:1.5px solid transparent; flex-shrink:0; min-width:var(--node-min-w);
     }
     .htree-node:hover { filter:brightness(1.3); }
     .htree-node.src-sel { border-color:#22c55e !important; box-shadow:0 0 8px rgba(34,197,94,0.3); }
@@ -49,7 +59,7 @@
     .htree-badge { font-size:8px; color:#ccc; background:rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; }
     .htree-bw { font-size:8px; color:#22d3ee; font-weight:bold; }
     .htree-iommu { font-size:8px; color:#fbbf24; font-weight:bold; }
-    .htree-children { display:flex; flex-direction:column; padding:4px 0 4px 60px; gap:2px; }
+    .htree-children { display:flex; flex-direction:column; padding:var(--child-pad,4px) 0 var(--child-pad,4px) var(--child-indent,60px); gap:var(--child-gap,2px); }
     .htree-children.folded { display:none; }
     .htree-child { padding:2px 0; }
 
@@ -160,8 +170,27 @@ const COLORS = {
 };
 const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
 
+// 레이아웃 상수 — 여기서 한번에 변경 가능
+const LAYOUT = {
+  childIndent: 60,       // 자식 노드 들여쓰기 (px)
+  childGap: 2,           // 자식 간 세로 간격 (px)
+  childPadding: 4,       // children 컨테이너 세로 패딩 (px)
+  nodeMinWidth: 160,     // 노드 최소 너비 (px)
+  nodePadding: '5px 10px',
+  nodeFontSize: '11px',
+  edgeWidth: 2.5,        // 기본 edge 두께
+  edgePcieWidth: 3,      // PCIe edge 두께
+  edgeHlWidth: 4,        // 하이라이트 edge 두께
+  edgeSegHlWidth: 5,     // 세그먼트 hover 하이라이트 두께
+  bwFontSize: '8px',     // BW 라벨 크기
+  bwLabelOffset: 4,      // BW 라벨 edge에서 오프셋
+};
+
 let graph=null, topo=null, nodeMap={}, childrenOf={};
 let srcId=null, dstId=null, hist=[], ctxNodeId=null, lastTrace=null;
+
+// Edge 데이터 모델: id → { source, target, type, bandwidth_gbps, latency_ns, ... }
+let edgeMap = {};
 
 async function init() {
   [graph, topo] = await Promise.all([
@@ -246,6 +275,8 @@ function drawEdges() {
   svg.setAttribute('height', container.scrollHeight);
   svg.innerHTML = '';
 
+  edgeMap = {};
+
   graph.edges.forEach(e => {
     const srcEl = document.getElementById('n_' + esc(e.data.source));
     const tgtEl = document.getElementById('n_' + esc(e.data.target));
@@ -253,37 +284,64 @@ function drawEdges() {
 
     const sr = srcEl.getBoundingClientRect();
     const tr = tgtEl.getBoundingClientRect();
-
-    // 좌표를 container 기준으로 변환
     const x1 = sr.right - rect.left;
     const y1 = sr.top + sr.height / 2 - rect.top;
     const x2 = tr.left - rect.left;
     const y2 = tr.top + tr.height / 2 - rect.top;
-
-    // 꺾인 직선: src 오른쪽 → 중간점 → dst 왼쪽
     const mx = (x1 + x2) / 2;
-    const path = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
 
-    const lc = e.data.type === 'internal' ? 'internal' : 'pcie';
     const eId = `e_${esc(e.data.source)}_${esc(e.data.target)}`;
+    const edgeType = e.data.type === 'internal' ? 'internal' : 'pcie';
 
+    // Edge 데이터 등록
+    edgeMap[eId] = {
+      id: eId,
+      source: e.data.source,
+      target: e.data.target,
+      type: edgeType,
+      bandwidth_gbps: e.data.bandwidth_gbps || null,
+      latency_ns: e.data.latency_ns || null,
+      speed: e.data.speed || null,
+      width: e.data.width || null,
+      path: { x1, y1, x2, y2, mx },
+    };
+
+    // SVG path
+    const pathD = `M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
     const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathEl.setAttribute('d', path);
-    pathEl.setAttribute('class', `edge-line ${lc}`);
+    pathEl.setAttribute('d', pathD);
+    pathEl.setAttribute('class', `edge-line ${edgeType}`);
     pathEl.setAttribute('id', eId);
+    pathEl.style.pointerEvents = 'stroke';
+    pathEl.style.cursor = 'pointer';
+    pathEl.addEventListener('click', () => showEdgeDetail(eId));
     svg.appendChild(pathEl);
 
-    // BW 라벨 — edge 가로 구간 중간에 배치
+    // BW 라벨 — 세로 구간 옆
     if (e.data.bandwidth_gbps) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', (mx + x2) / 2);
-      text.setAttribute('y', y2 - 5);
+      text.setAttribute('x', mx + LAYOUT.bwLabelOffset);
+      text.setAttribute('y', (y1 + y2) / 2 + 3);
       text.setAttribute('class', 'edge-bw');
-      text.setAttribute('text-anchor', 'middle');
-      text.textContent = e.data.bandwidth_gbps + ' GB/s';
+      text.textContent = e.data.bandwidth_gbps;
       svg.appendChild(text);
     }
   });
+}
+
+function showEdgeDetail(eId) {
+  const edge = edgeMap[eId];
+  if (!edge) return;
+  const srcName = nodeMap[edge.source]?.label || edge.source;
+  const tgtName = nodeMap[edge.target]?.label || edge.target;
+  let h = `<div class="section"><div class="stitle">Edge: ${srcName} → ${tgtName}</div>`;
+  h += `<div class="field"><span class="flabel">Type</span><br><span class="fval">${edge.type}</span></div>`;
+  if (edge.bandwidth_gbps) h += `<div class="field"><span class="flabel">Bandwidth</span><br><span class="fval">${edge.bandwidth_gbps} GB/s</span></div>`;
+  if (edge.latency_ns) h += `<div class="field"><span class="flabel">Latency</span><br><span class="fval">${edge.latency_ns} ns</span></div>`;
+  if (edge.speed) h += `<div class="field"><span class="flabel">Speed</span><br><span class="fval">${edge.speed}</span></div>`;
+  if (edge.width) h += `<div class="field"><span class="flabel">Width</span><br><span class="fval">x${edge.width}</span></div>`;
+  h += '</div>';
+  setSB(h); showTab('info');
 }
 function countDesc(id) { const k=childrenOf[id]||[]; let c=k.length; k.forEach(e=>{c+=countDesc(e.target);}); return c; }
 
