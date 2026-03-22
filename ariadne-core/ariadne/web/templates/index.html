@@ -39,30 +39,30 @@
     .htree-iommu { font-size:8px; color:#f0c040; }
 
     /* Parent → children 연결 */
-    .htree-connector { width:30px; border-top:2px solid #666; flex-shrink:0; }
-    .htree-connector.pcie { border-color:#e94560; }
-    .htree-connector.internal { border-color:#666; border-top-style:dashed; }
+    .htree-connector { width:36px; border-top:2px solid #666; flex-shrink:0; }
 
     /* Children 컨테이너: 왼쪽 세로선 */
     .htree-children {
       display:flex; flex-direction:column;
       border-left:2px solid #666;
-      padding:2px 0;
+      padding:4px 0;
+      gap:2px;
     }
 
     /* 각 child → 가로선 + 재귀 */
     .htree-child {
       display:flex; align-items:center;
+      padding:2px 0;
     }
     .htree-hline {
-      width:24px; border-top:2px solid #666; flex-shrink:0;
+      width:32px; border-top:2px solid #666; flex-shrink:0;
       position:relative;
     }
     .htree-hline.pcie { border-color:#e94560; }
     .htree-hline.internal { border-color:#666; border-top-style:dashed; }
     .htree-bw-label {
-      font-size:7px; color:#06b6d4; position:absolute;
-      top:-11px; left:0; white-space:nowrap;
+      font-size:8px; color:#06b6d4; position:absolute;
+      top:-12px; left:4px; white-space:nowrap;
     }
 
     /* Sidebar */
