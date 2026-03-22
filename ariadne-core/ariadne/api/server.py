@@ -63,8 +63,7 @@ async def get_topology_graph():
   for link in topo.links:
     if link.source not in visible_ids or link.target not in visible_ids:
       continue
-    # NUMA→NUMA (UPI) 링크는 트리 edge에서 제외 (peer 관계)
-    # cross_links로 별도 전달
+    # NUMA→NUMA (UPI) 링크는 트리에서 제외 (peer 관계, 부모-자식 아님)
     if link.type.value == "upi":
       continue
     key = f"{link.source}|{link.target}"
@@ -86,27 +85,7 @@ async def get_topology_graph():
       edge_data.update({k: v for k, v in link.attrs.items() if v is not None})
     edges.append({"data": edge_data})
 
-  # Cross-NUMA 링크 (UPI) — MC 간 연결로 변환
-  cross_links = []
-  for link in topo.links:
-    if link.type.value == "upi":
-      # NUMA ID에서 MC ID로 변환
-      src_mc = link.source.replace("numa_", "mc_")
-      tgt_mc = link.target.replace("numa_", "mc_")
-      if src_mc in visible_ids and tgt_mc in visible_ids:
-        cross_links.append({
-          "source": src_mc,
-          "target": tgt_mc,
-          "type": "upi",
-          "distance": link.attrs.get("distance"),
-        })
-
-  # NUMA distance matrix
-  numa_distances = {}
-  for node in topo.numa_nodes:
-    numa_distances[node.node_id] = node.distances
-
-  return {"nodes": nodes, "edges": edges, "cross_links": cross_links, "numa_distances": numa_distances}
+  return {"nodes": nodes, "edges": edges}
 
 
 @app.get("/api/trace")

@@ -183,38 +183,6 @@ function drawEdges() {
     registerEdge(e.data, coords);
     svg.appendChild(createEdgeGroup(e.data, coords));
   });
-
-  // Cross-NUMA 링크 (MC 간 점선)
-  if (App.graph.cross_links) {
-    App.graph.cross_links.forEach(cl => {
-      const coords = calcEdgeCoords(cl, container);
-      if (!coords) return;
-      const { x1, y1, x2, y2 } = coords;
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const midY = (y1 + y2) / 2;
-      const offset = 30;
-      const d = `M${x1},${y1} C${x1+offset},${y1} ${x2+offset},${y2} ${x2},${y2}`;
-      path.setAttribute('d', d);
-      path.setAttribute('stroke', '#f0c040');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute('stroke-dasharray', '8,4');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('opacity', '0.6');
-      g.appendChild(path);
-
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', Math.max(x1, x2) + offset + 4);
-      label.setAttribute('y', (y1 + y2) / 2 + 4);
-      label.setAttribute('fill', '#f0c040');
-      label.setAttribute('font-size', '9');
-      label.textContent = cl.distance ? `UPI d=${cl.distance}` : 'UPI';
-      g.appendChild(label);
-
-      svg.appendChild(g);
-    });
-  }
 }
 
 function getOffsetTo(el, ancestor) {

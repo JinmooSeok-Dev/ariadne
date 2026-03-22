@@ -90,10 +90,6 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--color-bg); 
 .edge-bg { pointer-events:none; opacity:0; transition:opacity 0.15s; }
 .edge-group:hover .edge-bw, .edge-group:hover .edge-bg { opacity:1; }
 
-/* Cross-NUMA link */
-.cross-link { stroke:#f0c040; stroke-width:2; stroke-dasharray:8,4; fill:none; opacity:0.6; }
-.cross-link-label { fill:#f0c040; font-size:9px; }
-
 /* Context menu */
 #ctx { position:absolute; background:var(--color-panel); border:1px solid #444; border-radius:6px; padding:4px 0; display:none; z-index:50; min-width:200px; box-shadow:0 4px 16px rgba(0,0,0,0.6); }
 .ctx-i { padding:7px 14px; font-size:12px; cursor:pointer; color:#ddd; }
