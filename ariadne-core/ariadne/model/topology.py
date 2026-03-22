@@ -201,8 +201,16 @@ def _build_pcie_components(
 
   host_bridges = [d for d in topo.pci_devices if d.type_name == "Host Bridge"]
   bridges = [d for d in topo.pci_devices if d.type_name == "PCI-to-PCI Bridge"]
-  endpoints = [d for d in topo.pci_devices if d.type_name not in ("Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge", "SMBus Controller")]
+  skip_types = {"Host Bridge", "PCI-to-PCI Bridge", "ISA Bridge", "SMBus Controller"}
+  endpoints = [d for d in topo.pci_devices if d.type_name not in skip_types]
 
+  _add_host_bridges(topo, host_bridges, components, links)
+  _add_root_ports(host_bridges, bridges, components, links)
+  _add_endpoints(host_bridges, bridges, endpoints, components, links)
+
+
+def _add_host_bridges(topo, host_bridges, components, links):
+  """Host Bridge → Root Complex 컴포넌트 + NUMA 링크."""
   for hb in host_bridges:
     rc_id = f"{P.PCIE_RC}{hb.bdf}"
     components.append(Component(
@@ -215,6 +223,9 @@ def _build_pcie_components(
     if numa is not None:
       links.append(Link(source=f"{P.NUMA}{numa}", target=rc_id, type=LinkType.INTERNAL))
 
+
+def _add_root_ports(host_bridges, bridges, components, links):
+  """PCI-to-PCI Bridge → Root Port 컴포넌트 + 부모 링크."""
   for br in bridges:
     rp_id = f"{P.PCIE_RP}{br.bdf}"
     components.append(Component(
@@ -230,46 +241,12 @@ def _build_pcie_components(
     if parent_comp:
       links.append(Link(source=parent_comp, target=rp_id, type=LinkType.INTERNAL))
 
+
+def _add_endpoints(host_bridges, bridges, endpoints, components, links):
+  """Endpoint 디바이스 → 컴포넌트 + PCIe 링크."""
   for ep in endpoints:
-    comp_type = ComponentType(ep.component_type) if ep.component_type else ComponentType.PCIE_ENDPOINT
-    bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
-    gen = get_pcie_gen(ep.current_link_speed)
-    width_str = f"x{ep.current_link_width}" if ep.current_link_width else ""
-    link_str = f"{gen} {width_str}".strip()
-
-    bar_summary = _summarize_bars(ep.bars)
-
-    name_parts = [ep.vendor_name, ep.type_name]
-    name = " ".join(p for p in name_parts if p)
-
-    ep_id = f"{P.PCIE}{ep.bdf}"
-    attrs: dict = {
-      "bdf": ep.bdf,
-      "vendor": ep.vendor,
-      "device_id": ep.device_id,
-      "vendor_name": ep.vendor_name,
-      "type_name": ep.type_name,
-      "link": link_str,
-      "iommu_group": ep.iommu_group,
-    }
-    if bw > 0:
-      attrs["bandwidth_gbps"] = bw
-    if bar_summary:
-      attrs["bars"] = bar_summary
-    if ep.sriov_totalvfs > 0:
-      attrs["sriov_totalvfs"] = ep.sriov_totalvfs
-      attrs["sriov_numvfs"] = ep.sriov_numvfs
-    if ep.is_vf:
-      attrs["is_vf"] = True
-    if ep.reset_method:
-      attrs["reset_method"] = ep.reset_method
-
-    components.append(Component(
-      id=ep_id,
-      type=comp_type,
-      name=name or ep.bdf,
-      attrs=attrs,
-    ))
+    comp, bw = _build_endpoint_component(ep)
+    components.append(comp)
 
     parent_id = None
     if ep.parent_bdf:
@@ -280,11 +257,44 @@ def _build_pcie_components(
     if parent_id:
       links.append(Link(
         source=parent_id,
-        target=ep_id,
+        target=comp.id,
         type=LinkType.PCIE,
         bandwidth_gbps=bw if bw > 0 else None,
         attrs={"speed": ep.current_link_speed, "width": ep.current_link_width},
       ))
+
+
+def _build_endpoint_component(ep) -> tuple[Component, float]:
+  """단일 endpoint의 Component 객체와 BW를 생성."""
+  comp_type = ComponentType(ep.component_type) if ep.component_type else ComponentType.PCIE_ENDPOINT
+  bw = calc_pcie_bandwidth(ep.current_link_speed, ep.current_link_width)
+  gen = get_pcie_gen(ep.current_link_speed)
+  width_str = f"x{ep.current_link_width}" if ep.current_link_width else ""
+  link_str = f"{gen} {width_str}".strip()
+
+  name_parts = [ep.vendor_name, ep.type_name]
+  name = " ".join(p for p in name_parts if p)
+
+  attrs: dict = {
+    "bdf": ep.bdf, "vendor": ep.vendor, "device_id": ep.device_id,
+    "vendor_name": ep.vendor_name, "type_name": ep.type_name,
+    "link": link_str, "iommu_group": ep.iommu_group,
+  }
+  if bw > 0:
+    attrs["bandwidth_gbps"] = bw
+  bar_summary = _summarize_bars(ep.bars)
+  if bar_summary:
+    attrs["bars"] = bar_summary
+  if ep.sriov_totalvfs > 0:
+    attrs["sriov_totalvfs"] = ep.sriov_totalvfs
+    attrs["sriov_numvfs"] = ep.sriov_numvfs
+  if ep.is_vf:
+    attrs["is_vf"] = True
+  if ep.reset_method:
+    attrs["reset_method"] = ep.reset_method
+
+  comp = Component(id=f"{P.PCIE}{ep.bdf}", type=comp_type, name=name or ep.bdf, attrs=attrs)
+  return comp, bw
 
 
 def _find_pcie_component_id(bdf: str, host_bridges: list, bridges: list) -> str | None:

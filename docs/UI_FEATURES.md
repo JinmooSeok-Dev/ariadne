@@ -125,6 +125,28 @@
 | **Info** | 선택한 노드/edge 상세 정보 |
 | **History** | 이전 trace 리스트 |
 
+## 미구현 / 개선 필요 항목
+
+### Sidebar 개선
+
+| 항목 | 설명 |
+|------|------|
+| **패널 hide/show** | sidebar를 접고 펼 수 있는 토글 버튼. 그래프 영역 최대화 |
+| **패널 크기 조절** | 그래프 ↔ sidebar 사이 드래그로 너비 조정 |
+| **Trace path 스크롤** | 경로가 길 때 Path 다이어그램/Breakdown 영역 독립 스크롤 |
+| **show 트리거 이벤트** | 패널이 숨겨진 상태에서 trace 실행 시 자동 show |
+
+### 향후 기능
+
+| 항목 | 설명 |
+|------|------|
+| **Group Trace (M:N)** | 다중 src/dst 선택 → 그룹 간 경로 분석 |
+| **멀티 Trace 오버레이** | 여러 trace를 다른 색상으로 동시 표시 |
+| **IOMMU 그룹 오버레이** | 같은 IOMMU 그룹 디바이스를 배경색으로 그룹핑 |
+| **Settings What-if** | BIOS/커널 설정 변경 → 재시뮬레이션 → sidebar Settings 탭 |
+| **디바이스 필터** | toolbar에 GPU/NPU/NVMe/NIC/Others 토글 |
+| **드롭다운 Trace 선택** | toolbar에서 fuzzy 검색으로 src/dst 선택 |
+
 ## API
 
 | Endpoint | 설명 |
