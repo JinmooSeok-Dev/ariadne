@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ariadne — Cluster</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { overflow:auto; }
+    #c-header { padding:10px 16px; background:var(--color-panel); border-bottom:1px solid var(--color-border); display:flex; align-items:center; gap:12px; }
+    #c-header h1 { font-size:15px; color:var(--color-accent); }
+    #c-form { padding:14px 16px; background:#11111e; border-bottom:1px solid var(--color-border); display:flex; gap:8px; align-items:flex-start; }
+    #c-form textarea { flex:1; min-height:120px; background:var(--color-bg); color:#eee; border:1px solid #333; border-radius:5px; padding:8px; font-family:'JetBrains Mono','Consolas',monospace; font-size:11px; }
+    #c-form input { background:var(--color-bg); color:#eee; border:1px solid #333; padding:6px; border-radius:4px; font-size:11px; }
+    #c-grid { padding:16px; display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start; position:relative; }
+    .c-host { background:var(--color-panel); border:1px solid #333; border-radius:6px; padding:10px 14px; min-width:240px; }
+    .c-host h3 { color:var(--color-cyan); font-size:13px; margin-bottom:6px; }
+    .c-host .row { font-size:11px; color:#bbb; padding:1px 0; }
+    .c-host .meta { font-size:10px; color:#888; margin-bottom:6px; }
+    .c-fail { border-color:#ef4444; }
+    .c-fail h3 { color:#ef4444; }
+    #c-links-list { padding:14px 16px; background:#0a0a14; }
+    #c-links-list h2 { font-size:13px; color:#94a3b8; margin-bottom:8px; }
+    .c-link { font-size:11px; color:#ccc; padding:3px 0; }
+    .c-link .ltype { display:inline-block; min-width:80px; }
+    .c-link.rdma .ltype { color:#22c55e; }
+    .c-link.infiniband .ltype { color:#06b6d4; }
+    .c-link.ethernet .ltype { color:#a855f7; }
+    .c-status { color:#888; font-size:11px; margin:0 8px; }
+    .c-error { color:#ef4444; font-size:11px; padding:8px; background:rgba(239,68,68,0.1); border-radius:4px; margin:8px 16px; }
+  </style>
+</head>
+<body>
+<div id="c-header">
+  <h1>Ariadne — Cluster</h1>
+  <a class="btn btn-gray" href="/" style="text-decoration:none;">← Single Host</a>
+  <span class="c-status" id="c-status">Ready</span>
+</div>
+
+<div id="c-form">
+  <input type="text" id="c-cluster-id" placeholder="cluster_id (예: lmtune-prod-a)" style="width:220px;">
+  <textarea id="c-inventory" placeholder="Ansible inventory YAML..."></textarea>
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <button class="btn" style="background:var(--color-accent);color:#fff;" onclick="buildCluster()">Build</button>
+    <button class="btn btn-gray" onclick="loadExample()">Example</button>
+  </div>
+</div>
+
+<div id="c-error" class="c-error hidden"></div>
+<div id="c-summary" style="padding:10px 16px;font-size:12px;color:#aaa;"></div>
+<div id="c-grid"></div>
+<div id="c-links-list"></div>
+
+<script src="/static/cluster.js"></script>
+</body>
+</html>

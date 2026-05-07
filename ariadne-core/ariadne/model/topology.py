@@ -25,6 +25,12 @@ from ariadne.collector.pcie import (
   get_short_vendor_name,
 )
 from ariadne.collector.iommu import collect_iommu_groups
+from ariadne.collector.nvlink import collect_nvlink
+from ariadne.collector.network import collect_network_interfaces
+from ariadne.collector.infiniband import collect_ib_devices
+from ariadne.collector.nvlink_fabric import collect_fabricmanager
+from ariadne.collector.system import collect_system_identity
+from ariadne.collector.vfio import collect_vfio_inventory
 
 
 def build_topology() -> SystemTopology:
@@ -63,12 +69,21 @@ def build_topology() -> SystemTopology:
       component_type=d["component_type"].value,
       type_name=d["type_name"],
       vendor_name=get_short_vendor_name(d["vendor"]),
+      ucie_capable=d.get("ucie_capable", False),
+      capabilities=d.get("capabilities", {}),
     )
     for d in raw_pci
   ]
   topo.iommu_groups = collect_iommu_groups()
+  topo.nvlink = collect_nvlink().model_dump()
+  topo.network_interfaces = [n.model_dump() for n in collect_network_interfaces()]
+  topo.ib_devices = [d.model_dump() for d in collect_ib_devices()]
+  topo.fabric_manager = collect_fabricmanager().model_dump()
+  topo.system_identity = collect_system_identity().model_dump()
+  topo.vfio = collect_vfio_inventory().model_dump()
 
   _build_components_and_links(topo)
+  _build_nvlink_links(topo)
   return topo
 
 
@@ -98,10 +113,12 @@ def _build_components_and_links(topo: SystemTopology) -> None:
 
     node_for_socket = _find_numa_for_socket(topo, sid)
     if node_for_socket is not None:
+      # NUMA→Socket은 조직적 링크 (물리적 연결 아님). latency 0.
       links.append(Link(
         source=f"{P.NUMA}{node_for_socket}",
         target=sock_id,
         type=LinkType.INTERNAL,
+        latency_ns=0,
       ))
 
   for core in topo.cpu_cores:
@@ -147,8 +164,11 @@ def _build_components_and_links(topo: SystemTopology) -> None:
       type=ComponentType.MEMORY_CONTROLLER,
       name=f"Memory Controller {node.node_id}",
     ))
+    # MC는 물리적으로 Socket 내부. CPU 없는 NUMA는 fallback으로 NUMA 직속.
+    sock = _find_socket_for_numa(topo, node.node_id)
+    mc_parent = f"{P.SOCKET}{sock}" if sock is not None else f"{P.NUMA}{node.node_id}"
     links.append(Link(
-      source=f"{P.NUMA}{node.node_id}",
+      source=mc_parent,
       target=mc_id,
       type=LinkType.INTERNAL,
     ))
@@ -210,7 +230,7 @@ def _build_pcie_components(
 
 
 def _add_host_bridges(topo, host_bridges, components, links):
-  """Host Bridge → Root Complex 컴포넌트 + NUMA 링크."""
+  """Host Bridge → Root Complex 컴포넌트 + Socket 링크."""
   for hb in host_bridges:
     rc_id = f"{P.PCIE_RC}{hb.bdf}"
     components.append(Component(
@@ -219,9 +239,12 @@ def _add_host_bridges(topo, host_bridges, components, links):
       name="PCIe Root Complex",
       attrs={"bdf": hb.bdf},
     ))
+    # RC는 물리적으로 Socket 내부. Socket을 찾아 링크하고, 없으면 NUMA fallback.
     numa = _resolve_numa_node(topo, hb.numa_node)
     if numa is not None:
-      links.append(Link(source=f"{P.NUMA}{numa}", target=rc_id, type=LinkType.INTERNAL))
+      sock = _find_socket_for_numa(topo, numa)
+      rc_parent = f"{P.SOCKET}{sock}" if sock is not None else f"{P.NUMA}{numa}"
+      links.append(Link(source=rc_parent, target=rc_id, type=LinkType.INTERNAL))
 
 
 def _add_root_ports(host_bridges, bridges, components, links):
@@ -292,6 +315,10 @@ def _build_endpoint_component(ep) -> tuple[Component, float]:
     attrs["is_vf"] = True
   if ep.reset_method:
     attrs["reset_method"] = ep.reset_method
+  if ep.ucie_capable:
+    attrs["ucie_capable"] = True
+  if ep.capabilities:
+    attrs["capabilities"] = ep.capabilities
 
   comp = Component(id=f"{P.PCIE}{ep.bdf}", type=comp_type, name=name or ep.bdf, attrs=attrs)
   return comp, bw
@@ -339,6 +366,18 @@ def _find_numa_for_socket(topo: SystemTopology, socket_id: int) -> int | None:
   return None
 
 
+def _find_socket_for_numa(topo: SystemTopology, numa_id: int) -> int | None:
+  """NUMA 노드에 속하는 소켓 ID를 찾는다. CPU 없는 NUMA는 None."""
+  node = next((n for n in topo.numa_nodes if n.node_id == numa_id), None)
+  if not node or not node.cpu_list:
+    return None
+  target_cpu = node.cpu_list[0]
+  for core in topo.cpu_cores:
+    if target_cpu in core.thread_siblings:
+      return core.physical_package_id
+  return None
+
+
 def _find_socket_for_cpus(topo: SystemTopology, cpu_list: list[int]) -> int | None:
   """CPU 리스트가 속하는 소켓을 찾는다."""
   if not cpu_list:
@@ -348,6 +387,60 @@ def _find_socket_for_cpus(topo: SystemTopology, cpu_list: list[int]) -> int | No
     if target in core.thread_siblings:
       return core.physical_package_id
   return None
+
+
+def _build_nvlink_links(topo: SystemTopology) -> None:
+  """nvidia-smi에서 수집한 NVLink connection을 토폴로지 그래프 link로 추가.
+
+  GPU 세대(device id)로 per-link BW를 자동 추정. 매핑 안 된 device id는
+  default 25 GB/s 사용. GPU 컴포넌트 ID는 BDF 기반(`pcie_<bdf>`).
+  """
+  from ariadne.collector.nvlink import per_link_bandwidth_gbps, nvlink_generation
+
+  if not topo.nvlink:
+    return
+  connections = topo.nvlink.get("connections") or []
+  gpu_device_ids = topo.nvlink.get("gpu_device_ids") or {}
+  bdf_to_device_id = {
+    bdf: gpu_device_ids.get(idx)
+    for idx, bdf in (topo.nvlink.get("gpus") or {}).items()
+    if isinstance(idx, int) and bdf
+  }
+
+  comp_ids = {c.id for c in topo.components}
+
+  for conn in connections:
+    a_bdf = conn.get("gpu_a_bdf")
+    b_bdf = conn.get("gpu_b_bdf")
+    link_count = conn.get("link_count", 0)
+    if not a_bdf or not b_bdf or link_count <= 0:
+      continue
+    a_id = f"{P.PCIE}{a_bdf}"
+    b_id = f"{P.PCIE}{b_bdf}"
+    if a_id not in comp_ids or b_id not in comp_ids:
+      continue
+
+    a_dev_id = bdf_to_device_id.get(a_bdf)
+    b_dev_id = bdf_to_device_id.get(b_bdf)
+    # 양쪽 GPU의 BW 중 더 작은 쪽을 채택 (혼합 GPU 시스템 보수적 추정)
+    candidate_bws = [per_link_bandwidth_gbps(d) for d in (a_dev_id, b_dev_id) if d]
+    per_link_bw = min(candidate_bws) if candidate_bws else 25.0
+    gen_a = nvlink_generation(a_dev_id) if a_dev_id else 0
+    gen_b = nvlink_generation(b_dev_id) if b_dev_id else 0
+
+    bw = round(link_count * per_link_bw, 1)
+    topo.links.append(Link(
+      source=a_id,
+      target=b_id,
+      type=LinkType.NVLINK,
+      bandwidth_gbps=bw,
+      attrs={
+        "link_count": link_count,
+        "topology_label": conn.get("topology_label", ""),
+        "per_link_gbps": per_link_bw,
+        "nvlink_generation": min(g for g in (gen_a, gen_b) if g) if (gen_a or gen_b) else 0,
+      },
+    ))
 
 
 def to_networkx(topo: SystemTopology) -> nx.DiGraph:

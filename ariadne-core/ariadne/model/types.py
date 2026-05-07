@@ -33,6 +33,7 @@ class ComponentType(str, Enum):
   NIC = "nic"
   NVME = "nvme"
   NPU = "npu"
+  NVSWITCH = "nvswitch"           # NVIDIA NVSwitch — DGX/HGX의 GPU 풀 연결
 
 
 class LinkType(str, Enum):
@@ -117,6 +118,8 @@ class PCIDevice(BaseModel):
   component_type: str = ""
   type_name: str = ""
   vendor_name: str = ""
+  ucie_capable: bool = False
+  capabilities: dict[str, bool] = {}  # PCIe Extended Cap: acs, ari, ats, pri, pasid, sriov, aer, dpc, ide
 
 
 class SystemTopology(BaseModel):
@@ -129,3 +132,15 @@ class SystemTopology(BaseModel):
   iommu_groups: dict[int, list[str]] = {}
   components: list[Component] = []
   links: list[Link] = []
+  # NVLink inventory (collect_nvlink().model_dump()).
+  nvlink: dict = {}
+  # Network interfaces (collect_network_interfaces() dump). inter-host link 추론 입력.
+  network_interfaces: list[dict] = []
+  # InfiniBand HCA (collect_ib_devices() dump). RDMA fabric 매칭 입력.
+  ib_devices: list[dict] = []
+  # Fabric Manager 로그에서 추출한 NVSwitch/GPU inventory (DGX/HGX). best-effort.
+  fabric_manager: dict = {}
+  # SMBIOS/dmidecode 기반 보드/시스템 식별 (root 필요).
+  system_identity: dict = {}
+  # VFIO/VM overlay (collect_vfio_inventory() dump). vfio-pci 바인딩 + qemu VM.
+  vfio: dict = {}

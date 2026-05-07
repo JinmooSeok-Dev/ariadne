@@ -10,6 +10,13 @@ const COLORS = {
 
 const TRACEABLE = new Set(['gpu','npu','nvme','nic','memory_controller','pcie_endpoint']);
 
+const TRACE_COLORS = ['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#84cc16'];
+
+// 디바이스 필터 카테고리 매핑
+const FILTER_MAP = {
+  gpu: 'gpu', npu: 'npu', nvme: 'nvme', nic: 'nic', pcie_endpoint: 'other',
+};
+
 const LAYOUT = {
   childIndent: 60,
   childGap: 2,
@@ -61,6 +68,12 @@ const App = {
   ctxNodeId: null,
   lastTrace: null,
   zoomScale: 1,
+  iommuGroups: {},
+  iommuCtx: {},
+  pinnedTraces: [],  // 멀티 trace 오버레이
+  srcIds: [],        // Group Trace 다중 소스
+  dstIds: [],        // Group Trace 다중 목적지
+  iommuOn: false,
 };
 
 // === 데이터 로딩 ===
@@ -74,6 +87,8 @@ async function init() {
 
   App.nodeMap = {};
   App.graph.nodes.forEach(n => App.nodeMap[n.data.id] = n.data);
+  App.iommuGroups = App.graph.iommu_groups || {};
+  App.iommuCtx = App.graph.iommu_context || {};
   App.childrenOf = {};
   App.graph.edges.forEach(e => {
     if (!App.childrenOf[e.data.source]) App.childrenOf[e.data.source] = [];
@@ -110,7 +125,7 @@ function buildNode(id) {
 
   let h = `<div class="htree">`;
   const dimClass = TRACEABLE.has(node.type) ? '' : ' htree-dim';
-  h += `<div class="htree-node${dimClass}" id="${ID.node(id)}" data-id="${id}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')" oncontextmenu="showCtx(event,'${id}')">`;
+  h += `<div class="htree-node${dimClass}" id="${ID.node(id)}" data-id="${id}" data-type="${node.type}" style="background:${color}22;border-color:${color}44" onclick="clickNode('${id}')" oncontextmenu="showCtx(event,'${id}')">`;
   if (kids.length > 0) h += `<span class="htree-toggle" onclick="event.stopPropagation();fold('${chId}',this)">▼</span>`;
   h += `<span class="htree-dot" style="background:${color}"></span>`;
   h += `<span class="htree-label">${node.label}</span>`;
@@ -142,10 +157,18 @@ function buildBadges(node) {
     }
   }
   if (node.link) b += `<span class="htree-badge">${node.link}</span>`;
-  if (node.iommu_group >= 0) b += `<span class="htree-iommu">G${node.iommu_group}</span>`;
+  if (node.iommu_group >= 0) b += `<span class="htree-iommu" data-iommu="${node.iommu_group}" onclick="event.stopPropagation();showIommuGroup(${node.iommu_group})">🔒${node.iommu_group}</span>`;
   if (node.sriov_totalvfs > 0) b += `<span class="htree-badge">VF:${node.sriov_numvfs || 0}/${node.sriov_totalvfs}</span>`;
   if (node.memory_mb) b += `<span class="htree-badge">${Math.round(node.memory_mb / 1024)}GB</span>`;
   if (node.cpu_count) b += `<span class="htree-badge">${node.cpu_count}CPU</span>`;
+  // PCIe Extended Capabilities (ACS/ARI/ATS/...)
+  if (node.capabilities) {
+    const caps = node.capabilities;
+    ['acs','ari','ats','pri','pasid','dpc'].forEach(k => {
+      if (caps[k]) b += `<span class="htree-cap ${k}">${k.toUpperCase()}</span>`;
+    });
+  }
+  if (node.ucie_capable) b += `<span class="htree-cap ucie">UCIe</span>`;
   return b;
 }
 
@@ -237,7 +260,10 @@ function createEdgeGroup(edgeData, coords) {
   g.setAttribute('data-target', edgeData.target);
   g.style.cursor = 'pointer';
   g.addEventListener('click', () => showEdgeDetail(eId));
-  g.addEventListener('mouseenter', () => hlSegFromEdge(edgeData.source, edgeData.target));
+  g.addEventListener('mouseenter', () => {
+    g.parentNode.appendChild(g); // 겹치는 edge 위로 올림
+    hlSegFromEdge(edgeData.source, edgeData.target);
+  });
   g.addEventListener('mouseleave', () => unhlSeg());
 
   // 히트 영역

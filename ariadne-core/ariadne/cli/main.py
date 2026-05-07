@@ -100,6 +100,81 @@ def serve(
   uvicorn.run("ariadne.api.server:app", host=host, port=port, log_level="warning")
 
 
+@app.command()
+def simulate(
+  spec_file: Path = typer.Argument(..., help="Flow spec JSON 파일 경로"),
+):
+  """Flow spec JSON을 입력받아 DES 시뮬레이션을 수행한다.
+
+  spec_file 형식: {"flows": [{"flow_id": ..., "source": ..., "destination": ...,
+                              "size_bytes": ..., "start_ns": 0}], "params": {...}}
+  """
+  from ariadne.analyzer.simulation import FlowSpec, simulate_flows
+  from ariadne.model.topology import build_topology
+
+  data = json.loads(spec_file.read_text())
+  flows = [FlowSpec(**f) for f in data.get("flows", [])]
+  params = data.get("params")
+  topo = build_topology()
+  result = simulate_flows(topo, flows, params=params)
+  typer.echo(result.model_dump_json(indent=2))
+
+
+cluster_app = typer.Typer(name="cluster", help="다중 호스트(클러스터) 토폴로지")
+app.add_typer(cluster_app)
+
+
+@cluster_app.command("build")
+def cluster_build(
+  inventory: Path = typer.Argument(..., help="Ansible inventory YAML 경로"),
+  cluster_id: Optional[str] = typer.Option(None, "--cluster-id", help="기본값: 파일명 stem"),
+  output: Optional[Path] = typer.Option(None, "--out", "-o", help="ClusterTopology JSON 저장 경로"),
+):
+  """Inventory를 읽어 SSH 원격 수집 후 ClusterTopology를 생성한다."""
+  import asyncio
+
+  from ariadne.cluster.inventory import parse_inventory
+  from ariadne.cluster.remote import build_cluster_topology
+
+  spec = parse_inventory(inventory, cluster_id=cluster_id)
+  console.print(f"[dim]Cluster {spec.cluster_id} — 호스트 {len(spec.hosts)}개 수집...[/]")
+  cluster = asyncio.run(build_cluster_topology(spec))
+  payload = cluster.model_dump_json(indent=2)
+  if output:
+    output.write_text(payload)
+    console.print(f"[green]Saved:[/] {output}")
+  else:
+    typer.echo(payload)
+  ok_hosts = len(cluster.hosts)
+  console.print(
+    f"[bold]Cluster {cluster.cluster_id}[/] — "
+    f"{ok_hosts}/{len(spec.hosts)} 호스트 수집 성공, "
+    f"inter-host link {len(cluster.inter_host_links)}개 추론, "
+    f"그룹 {len(cluster.groups)}개"
+  )
+
+
+@cluster_app.command("trace")
+def cluster_trace_cmd(
+  inventory: Path = typer.Argument(..., help="Inventory YAML"),
+  source: str = typer.Argument(..., help="src — host_id::component_id 또는 host_id"),
+  destination: str = typer.Argument(..., help="dst — host_id::component_id 또는 host_id"),
+  cluster_id: Optional[str] = typer.Option(None, "--cluster-id"),
+):
+  """Inventory를 수집한 뒤 cross-host trace를 수행한다."""
+  import asyncio
+  import json as _json
+
+  from ariadne.analyzer.cluster_trace import trace_cluster
+  from ariadne.cluster.inventory import parse_inventory
+  from ariadne.cluster.remote import build_cluster_topology
+
+  spec = parse_inventory(inventory, cluster_id=cluster_id)
+  cluster = asyncio.run(build_cluster_topology(spec))
+  result = trace_cluster(cluster, source, destination)
+  typer.echo(_json.dumps(result.model_dump(), indent=2, ensure_ascii=False))
+
+
 def _interactive_select(topo, source_hint: str | None, dest_hint: str | None):
   """fuzzy 검색으로 source와 destination을 선택."""
   from InquirerPy import inquirer

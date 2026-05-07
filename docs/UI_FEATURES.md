@@ -52,6 +52,16 @@
 | 줌 레벨 표시 | 현재 % 표시 | `#zoom-level` |
 | CSS transform | `scale()` 기반, `transform-origin: 0 0` | `setZoom()` |
 
+### 디바이스 필터
+
+| 기능 | 설명 | 구현 위치 |
+|------|------|----------|
+| 필터 토글 버튼 | header에 GPU/NPU/NVMe/NIC/Other 5개 토글. 타입별 색상 | `index.html` `#filters` |
+| 기본 전체 ON | 모든 필터 기본 활성화 (모든 디바이스 표시) | `.fbtn.on` 클래스 |
+| 필터링 | 비활성 필터의 endpoint `.htree-child` 숨김 | `applyFilters()` |
+| Edge 재그리기 | 필터 적용 후 SVG edge 재렌더링 | `drawEdges()` |
+| 비-endpoint 유지 | NUMA, Socket, RC, RP 등 구조 노드는 필터 대상 아님 | `FILTER_MAP` |
+
 ### 검색
 
 | 기능 | 설명 | 구현 위치 |
@@ -149,11 +159,12 @@
 | 항목 | 설명 |
 |------|------|
 | **Group Trace (M:N)** | 다중 src/dst 선택 → 그룹 간 경로 분석 |
-| **멀티 Trace 오버레이** | 여러 trace를 다른 색상으로 동시 표시 |
-| **IOMMU 그룹 오버레이** | 같은 IOMMU 그룹 디바이스를 배경색으로 그룹핑 |
+| ~~멀티 Trace 오버레이~~ | ✅ History에서 pin/unpin, 최대 8개 동시 표시 (색상별 점선) |
+| ~~IOMMU 그룹 기본~~ | ✅ sidebar IOMMU 탭 + 🔒배지 (클릭→탭전환, sidebar→트리 hover 연동) |
+| **IOMMU 그래프 표현 개선** | 트리에서 같은 그룹 디바이스를 시각적으로 묶는 방법 (배경색 영역, 연결선 등). 현재는 sidebar→트리 단방향만 동작, 트리→sidebar 양방향 연동 필요 |
 | **Settings What-if** | BIOS/커널 설정 변경 → 재시뮬레이션 → sidebar Settings 탭 |
-| **디바이스 필터** | toolbar에 GPU/NPU/NVMe/NIC/Others 토글 |
-| **드롭다운 Trace 선택** | toolbar에서 fuzzy 검색으로 src/dst 선택 |
+| ~~디바이스 필터~~ | ✅ 구현됨 |
+| ~~드롭다운 Trace 선택~~ | ✅ 구현됨 |
 
 ## API
 

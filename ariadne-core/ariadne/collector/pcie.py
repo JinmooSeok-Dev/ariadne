@@ -91,11 +91,39 @@ def _read_sysfs_hex(path: Path) -> int:
   return _read_sysfs_int(path, 16)
 
 
-def classify_device(class_code: int, vendor: int = 0) -> ComponentType:
-  """PCI class code + vendor에서 Ariadne ComponentType 결정."""
+# NVIDIA NVSwitch device id (vendor 0x10de). 세대별:
+#   0x1af1: NVSwitch v1 (DGX-1V V100)
+#   0x1ac2/0x1ac3: NVSwitch v2 (HGX A100)
+#   0x22a3: NVSwitch v3 (HGX H100)
+#   0x22a4: NVSwitch v3 변종
+#   0x2b1f/0x2b3f: NVSwitch v4 (HGX B200, NVL72)
+NVSWITCH_DEVICE_IDS: dict[int, set[int]] = {
+  0x10de: {0x1af1, 0x1ac2, 0x1ac3, 0x22a3, 0x22a4, 0x2b1f, 0x2b3f},
+}
+
+# UCIe(Universal Chiplet Interconnect Express)는 표준 sysfs 노출이 없다.
+# 1차에서는 vendor+device id 기반으로 capability flag만 마킹.
+#   Rebellions REBEL CA21: quad chiplet UCIe interconnect
+UCIE_CAPABLE_DEVICE_IDS: dict[int, set[int]] = {
+  0x1eff: {0x1210, 0x1211},  # REBEL CA21 PF/VF
+}
+
+
+def is_nvswitch(vendor: int, device_id: int) -> bool:
+  return device_id in NVSWITCH_DEVICE_IDS.get(vendor, set())
+
+
+def is_ucie_capable(vendor: int, device_id: int) -> bool:
+  return device_id in UCIE_CAPABLE_DEVICE_IDS.get(vendor, set())
+
+
+def classify_device(class_code: int, vendor: int = 0, device_id: int = 0) -> ComponentType:
+  """PCI class code + vendor + device id에서 Ariadne ComponentType 결정."""
   base_class = (class_code >> 16) & 0xFF
   sub_class = (class_code >> 8) & 0xFF
 
+  if is_nvswitch(vendor, device_id):
+    return ComponentType.NVSWITCH
   if base_class == 0x06 and sub_class == 0x04:
     return ComponentType.PCIE_ROOT_PORT
   if base_class == 0x06 and sub_class == 0x00:
@@ -125,7 +153,9 @@ def format_bar_size(size: int) -> str:
 
 
 def get_device_type_name(class_code: int, vendor: int = 0, device_id: int = 0) -> str:
-  """PCI class code에서 사람이 읽을 수 있는 이름. NPU는 제품명 포함."""
+  """PCI class code에서 사람이 읽을 수 있는 이름. NPU/NVSwitch는 제품명 포함."""
+  if is_nvswitch(vendor, device_id):
+    return "NVSwitch"
   if vendor == 0x1eff:
     product = REBELLIONS_DEVICES.get(device_id)
     if product:
@@ -205,6 +235,8 @@ def collect_pci_devices(sysfs_base: Path = SYSFS_PCI_BASE) -> list[dict]:
 
     parent_bdf = _find_parent_bdf(dev_path)
 
+    capabilities = collect_pci_capabilities(dev_path)
+
     devices.append({
       "bdf": bdf,
       "class_code": class_code,
@@ -225,8 +257,10 @@ def collect_pci_devices(sysfs_base: Path = SYSFS_PCI_BASE) -> list[dict]:
       "enabled": enabled,
       "bars": bars,
       "parent_bdf": parent_bdf,
-      "component_type": classify_device(class_code, vendor),
+      "component_type": classify_device(class_code, vendor, device_id),
       "type_name": get_device_type_name(class_code, vendor, device_id),
+      "ucie_capable": is_ucie_capable(vendor, device_id),
+      "capabilities": capabilities,
     })
 
   return devices
@@ -322,6 +356,75 @@ REBELLIONS_DEVICES = {
 
 def get_short_vendor_name(vendor_id: int) -> str:
   return KNOWN_VENDORS.get(vendor_id, f"{vendor_id:#06x}")
+
+
+# PCIe Extended Capability IDs (PCI Express Base Spec). Extended capability list는
+# config space offset 0x100부터 시작하며 4 byte 헤더가 다음 capability offset을 가리킨다.
+#   header[15:0]  = capability ID
+#   header[19:16] = version
+#   header[31:20] = next capability offset (0이면 list 끝)
+EXT_CAP_IDS = {
+  0x0001: "aer",            # Advanced Error Reporting
+  0x0003: "dsn",            # Device Serial Number
+  0x000D: "acs",            # Access Control Services
+  0x000E: "ari",            # Alternative Routing-ID Interpretation
+  0x000F: "ats",            # Address Translation Services
+  0x0010: "sriov",          # SR-IOV (capability 자체. 활성 여부는 sysfs sriov_numvfs)
+  0x0013: "pri",            # Page Request Interface
+  0x001B: "pasid",          # Process Address Space ID
+  0x0023: "dpc",            # Downstream Port Containment
+  0x002F: "ide",            # Integrity and Data Encryption (PCIe 6.0+)
+}
+
+EXT_CAP_BASE = 0x100
+
+
+def parse_extended_capabilities(config: bytes) -> dict[str, bool]:
+  """PCIe Extended Capability 리스트 파싱.
+
+  Extended cap는 config space 0x100부터 시작하므로 일반 사용자(256B)는
+  접근 불가, root에서만 4KB 전체를 읽을 수 있다. 권한 없거나 short read이면
+  빈 dict.
+  """
+  caps: dict[str, bool] = {}
+  if len(config) <= EXT_CAP_BASE + 4:
+    return caps
+
+  offset = EXT_CAP_BASE
+  visited: set[int] = set()
+  # 무한 루프 방지: extended cap list는 일반적으로 < 64개
+  while offset and offset not in visited and len(visited) < 256:
+    if offset + 4 > len(config):
+      break
+    visited.add(offset)
+    header = int.from_bytes(config[offset:offset + 4], "little")
+    cap_id = header & 0xFFFF
+    next_offset = (header >> 20) & 0xFFF
+    # cap_id 0x0000 + next_offset 0 = uninitialized config space
+    if cap_id == 0 and next_offset == 0:
+      break
+    name = EXT_CAP_IDS.get(cap_id)
+    if name:
+      caps[name] = True
+    if next_offset == 0 or next_offset == offset:
+      break
+    offset = next_offset
+  return caps
+
+
+def collect_pci_capabilities(dev_path: Path) -> dict[str, bool]:
+  """sysfs config 파일에서 PCIe Extended Capability 파싱.
+
+  PermissionError(일반 사용자) 또는 short read 시 빈 dict 반환.
+  ariadne 정신상 sudo 권장이지만 실패해도 다른 정보 수집은 계속한다.
+  """
+  config_path = dev_path / "config"
+  try:
+    with config_path.open("rb") as f:
+      data = f.read()
+  except (PermissionError, OSError):
+    return {}
+  return parse_extended_capabilities(data)
 
 
 def get_device_product_name(vendor_id: int, device_id: int) -> str:

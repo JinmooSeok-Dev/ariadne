@@ -15,6 +15,10 @@ DEFAULT_PARAMS = {
   "internal_latency_ns": 20,
   "pcie_link_latency_ns": 100,
   "memory_latency_ns": 80,
+  "nvlink_efficiency": 0.95,    # NVLink는 PCIe보다 효율 높음
+  "nvlink_latency_ns": 30,      # GPU↔GPU NVLink (NVSwitch 없는 P2P 가정)
+  "ucie_efficiency": 0.95,
+  "ucie_latency_ns": 5,         # 칩렛 간 — 매우 짧음
 }
 
 
@@ -104,8 +108,32 @@ def trace_path(
     elif link_type == LinkType.UPI.value or link_type == LinkType.UPI:
       seg["latency_ns"] = p["numa_remote_latency_ns"]
 
+    elif link_type == LinkType.NVLINK.value or link_type == LinkType.NVLINK:
+      bw = edge.get("bandwidth_gbps")
+      if bw and bw > 0:
+        eff_bw = round(bw * p["nvlink_efficiency"], 1)
+        seg["theoretical_bw_gbps"] = bw
+        seg["effective_bw_gbps"] = eff_bw
+        if eff_bw < min_bw:
+          min_bw = eff_bw
+          bottleneck_seg = f"{seg['from_name']} → {seg['to_name']}"
+      seg["latency_ns"] = p["nvlink_latency_ns"]
+
+    elif link_type == LinkType.UCIE.value or link_type == LinkType.UCIE:
+      bw = edge.get("bandwidth_gbps")
+      if bw and bw > 0:
+        eff_bw = round(bw * p["ucie_efficiency"], 1)
+        seg["theoretical_bw_gbps"] = bw
+        seg["effective_bw_gbps"] = eff_bw
+        if eff_bw < min_bw:
+          min_bw = eff_bw
+          bottleneck_seg = f"{seg['from_name']} → {seg['to_name']}"
+      seg["latency_ns"] = p["ucie_latency_ns"]
+
     else:
-      seg["latency_ns"] = p["internal_latency_ns"]
+      # 링크에 명시적 latency가 있으면 우선 사용 (NUMA→Socket 등 조직적 링크는 0)
+      explicit = edge.get("latency_ns")
+      seg["latency_ns"] = explicit if explicit is not None else p["internal_latency_ns"]
 
     total_latency += seg["latency_ns"]
     result.segments.append(seg)

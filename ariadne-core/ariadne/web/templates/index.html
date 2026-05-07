@@ -10,20 +10,44 @@
   <h1>Ariadne</h1>
   <span class="info" id="hinfo"></span>
   <div class="spacer"></div>
+  <div id="filters">
+    <button class="fbtn on" data-filter="gpu" onclick="toggleFilter(this)" style="--fc:#22c55e">GPU</button>
+    <button class="fbtn on" data-filter="npu" onclick="toggleFilter(this)" style="--fc:#06b6d4">NPU</button>
+    <button class="fbtn on" data-filter="nvme" onclick="toggleFilter(this)" style="--fc:#f59e0b">NVMe</button>
+    <button class="fbtn on" data-filter="nic" onclick="toggleFilter(this)" style="--fc:#a855f7">NIC</button>
+    <button class="fbtn on" data-filter="other" onclick="toggleFilter(this)" style="--fc:#6b7280">Other</button>
+  </div>
   <input type="text" id="search" placeholder="Search device..." oninput="searchDev(this.value)">
-  <button class="btn btn-gray hidden" id="bclear" onclick="clearSel()">Clear (ESC)</button>
   <button class="btn btn-gray" onclick="location.reload()">Reload</button>
+  <a class="btn btn-gray" href="/cluster" style="text-decoration:none;display:inline-flex;align-items:center;">Cluster</a>
 </div>
-<div id="sel-bar"><span id="sel-text"></span></div>
+<div id="toolbar">
+  <div class="sel-picker">
+    <span class="sel-label text-source">SRC</span>
+    <div class="sel-dropdown">
+      <input type="text" class="sel-input" id="src-input" placeholder="Source..." oninput="filterPicker('src',this.value)" onfocus="openPicker('src')" autocomplete="off">
+      <div class="sel-list hidden" id="src-list"></div>
+    </div>
+  </div>
+  <span class="sel-arrow">→</span>
+  <div class="sel-picker">
+    <span class="sel-label text-dest">DST</span>
+    <div class="sel-dropdown">
+      <input type="text" class="sel-input" id="dst-input" placeholder="Destination..." oninput="filterPicker('dst',this.value)" onfocus="openPicker('dst')" autocomplete="off">
+      <div class="sel-list hidden" id="dst-list"></div>
+    </div>
+  </div>
+  <button class="btn btn-sm" id="trace-btn" onclick="traceFromPicker()" disabled>Trace</button>
+  <button class="btn btn-sm btn-gray" onclick="clearSel()">Clear</button>
+  <div class="tb-sep"></div>
+  <button class="zoom-btn" onclick="zoomOut()">−</button>
+  <span id="zoom-level">100%</span>
+  <button class="zoom-btn" onclick="zoomIn()">+</button>
+  <button class="zoom-btn" onclick="zoomFit()" style="font-size:10px;width:auto;padding:0 6px;">Fit</button>
+</div>
 
 <div id="main">
   <div id="tree-panel">
-    <div id="zoom-controls">
-      <button class="zoom-btn" onclick="zoomIn()">+</button>
-      <button class="zoom-btn" onclick="zoomOut()">−</button>
-      <span id="zoom-level">100%</span>
-      <button class="zoom-btn" onclick="zoomFit()" style="font-size:10px;width:auto;padding:0 8px;">Fit</button>
-    </div>
     <div id="tree-content" style="position:relative;">
       <svg id="edge-svg"></svg>
       <div id="tree-nodes"></div>
@@ -35,6 +59,11 @@
     <div class="tabs">
       <div class="tab on" onclick="showTab('trace')">Trace</div>
       <div class="tab" onclick="showTab('info')">Info</div>
+      <div class="tab" onclick="showTab('iommu')">IOMMU</div>
+      <div class="tab" onclick="showTab('safety')">Safety</div>
+      <div class="tab" onclick="showTab('vfio')">VFIO</div>
+      <div class="tab" onclick="showTab('whatif')">What-if</div>
+      <div class="tab" onclick="showTab('simulate')">Simulate</div>
       <div class="tab" onclick="showTab('history')">History</div>
     </div>
     <div id="sb">

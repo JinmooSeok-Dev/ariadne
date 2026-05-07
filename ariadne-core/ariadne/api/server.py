@@ -7,9 +7,18 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from ariadne.analyzer.cluster_trace import trace_cluster, trace_group
+from ariadne.analyzer.safety import analyze_sriov_safety
+from ariadne.analyzer.simulation import FlowSpec, simulate_flows
+from ariadne.analyzer.trace import trace_path
+from ariadne.analyzer.transfer import list_transfer_modes
+from ariadne.model.settings import Settings, what_if_trace
+from ariadne.cluster.inventory import parse_inventory_dict
+from ariadne.cluster.remote import build_cluster_topology
+from ariadne.collector.iommu import collect_iommu_context
+from ariadne.model.cluster import ClusterTopology
 from ariadne.model.topology import build_topology
 from ariadne.model.types import SystemTopology
-from ariadne.analyzer.trace import trace_path
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "web" / "templates"
 STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
@@ -31,6 +40,11 @@ def _get_topology() -> SystemTopology:
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
   return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/cluster", response_class=HTMLResponse)
+async def cluster_page(request: Request):
+  return templates.TemplateResponse("cluster.html", {"request": request})
 
 
 @app.get("/api/topology")
@@ -85,7 +99,21 @@ async def get_topology_graph():
       edge_data.update({k: v for k, v in link.attrs.items() if v is not None})
     edges.append({"data": edge_data})
 
-  return {"nodes": nodes, "edges": edges}
+  # IOMMU 그룹: group_id → [component_id, ...]
+  iommu_map = {}
+  for comp in topo.components:
+    ig = comp.attrs.get("iommu_group", -1)
+    if ig >= 0:
+      iommu_map.setdefault(ig, []).append(comp.id)
+
+  iommu_ctx = collect_iommu_context()
+
+  return {
+    "nodes": nodes,
+    "edges": edges,
+    "iommu_groups": iommu_map,
+    "iommu_context": iommu_ctx,
+  }
 
 
 @app.get("/api/trace")
@@ -111,3 +139,107 @@ async def reload_topology():
   global _cached_topo
   _cached_topo = build_topology()
   return {"status": "ok", "components": len(_cached_topo.components)}
+
+
+@app.get("/api/transfer-modes")
+async def api_transfer_modes(source: str, destination: str):
+  topo = _get_topology()
+  modes = list_transfer_modes(topo, source, destination)
+  return {"source": source, "destination": destination,
+          "modes": [m.model_dump() for m in modes]}
+
+
+@app.get("/api/safety/sriov")
+async def api_safety_sriov():
+  topo = _get_topology()
+  issues = analyze_sriov_safety(topo)
+  return {"issues": [i.model_dump() for i in issues]}
+
+
+@app.get("/api/vfio")
+async def api_vfio():
+  topo = _get_topology()
+  return topo.vfio
+
+
+@app.post("/api/whatif")
+async def api_whatif(body: dict):
+  """Body: {"source": ..., "destination": ..., "settings": {Settings fields}}"""
+  topo = _get_topology()
+  src = body.get("source")
+  dst = body.get("destination")
+  if not src or not dst:
+    return {"error": "source and destination are required"}, 400
+  try:
+    settings = Settings(**(body.get("settings") or {}))
+  except Exception as e:
+    return {"error": f"invalid settings: {e}"}, 400
+  result = what_if_trace(topo, src, dst, settings)
+  return result.model_dump()
+
+
+@app.post("/api/simulate")
+async def api_simulate(spec: dict):
+  """Body: {"flows": [{"flow_id": ..., "source": ..., "destination": ...,
+                       "size_bytes": ..., "start_ns": 0}], "params": {...}}"""
+  topo = _get_topology()
+  flows_raw = spec.get("flows") or []
+  params = spec.get("params")
+  try:
+    flows = [FlowSpec(**f) for f in flows_raw]
+  except Exception as e:
+    return {"error": f"invalid flow spec: {e}"}, 400
+  result = simulate_flows(topo, flows, params=params)
+  return result.model_dump()
+
+
+_cached_clusters: dict[str, ClusterTopology] = {}
+
+
+@app.post("/api/cluster")
+async def api_cluster_build(spec: dict):
+  """Inventory dict + cluster_id를 받아 SSH 원격 수집 후 ClusterTopology 캐싱.
+
+  Body 예시: {"cluster_id": "lmtune-prod-a", "inventory": {"all": {"hosts": {...}}}}
+  """
+  cluster_id = spec.get("cluster_id")
+  inventory = spec.get("inventory")
+  if not cluster_id or not inventory:
+    return {"error": "cluster_id and inventory are required"}, 400
+
+  cluster_spec = parse_inventory_dict(inventory, cluster_id=cluster_id)
+  cluster = await build_cluster_topology(cluster_spec)
+  _cached_clusters[cluster_id] = cluster
+  return cluster.model_dump()
+
+
+@app.get("/api/cluster/{cluster_id}")
+async def api_cluster_get(cluster_id: str):
+  cluster = _cached_clusters.get(cluster_id)
+  if not cluster:
+    return {"error": f"cluster '{cluster_id}' not found. POST /api/cluster first"}, 404
+  return cluster.model_dump()
+
+
+@app.get("/api/cluster/{cluster_id}/trace")
+async def api_cluster_trace(cluster_id: str, source: str, destination: str):
+  cluster = _cached_clusters.get(cluster_id)
+  if not cluster:
+    return {"error": f"cluster '{cluster_id}' not found"}, 404
+  return trace_cluster(cluster, source, destination).model_dump()
+
+
+@app.post("/api/cluster/{cluster_id}/group-trace")
+async def api_cluster_group_trace(cluster_id: str, body: dict):
+  """Body: {"src_ids": [...], "dst_ids": [...], "pattern": "all_to_all"|"one_to_many"|...}"""
+  cluster = _cached_clusters.get(cluster_id)
+  if not cluster:
+    return {"error": f"cluster '{cluster_id}' not found"}, 404
+  src_ids = body.get("src_ids") or []
+  dst_ids = body.get("dst_ids") or []
+  pattern = body.get("pattern", "all_to_all")
+  try:
+    result = trace_group(cluster, src_ids, dst_ids, pattern=pattern)
+  except ValueError as e:
+    return {"error": str(e)}, 400
+  return result.model_dump()
