@@ -4,8 +4,8 @@
 하나의 zipapp(.pyz)으로 패키징한다. SSH로 전송해 `python3 path/to/collector.pyz`
 실행 시 stdout으로 SystemTopology JSON을 출력한다.
 
-원격 의존성: python3.10+, pydantic>=2, networkx, pyyaml.
-ariadne 자체는 원격에 설치할 필요 없음.
+원격 의존성: python3.10+, pydantic>=2.
+ariadne 자체는 원격에 설치할 필요 없음 — networkx/pyyaml/asyncssh/simpy도 불필요.
 
 UI/API/cluster 코드는 zipapp에서 제외 — collector에 불필요하고 원격 의존성을 늘림.
 """

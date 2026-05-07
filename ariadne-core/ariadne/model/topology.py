@@ -2,8 +2,6 @@
 
 import socket as sock_mod
 
-import networkx as nx
-
 from ariadne.model.types import (
   CacheLevel,
   Component,
@@ -443,8 +441,13 @@ def _build_nvlink_links(topo: SystemTopology) -> None:
     ))
 
 
-def to_networkx(topo: SystemTopology) -> nx.DiGraph:
-  """SystemTopology를 NetworkX DiGraph로 변환한다."""
+def to_networkx(topo: SystemTopology):
+  """SystemTopology를 NetworkX DiGraph로 변환한다.
+
+  networkx import는 함수 내부에 둔다 — 원격 collector zipapp(.pyz)가
+  topology 모듈을 import할 때 networkx 의존을 강제하지 않기 위함.
+  """
+  import networkx as nx
   g = nx.DiGraph()
   for comp in topo.components:
     g.add_node(comp.id, **comp.model_dump())
