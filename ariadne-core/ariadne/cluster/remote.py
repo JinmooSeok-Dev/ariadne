@@ -78,7 +78,7 @@ async def _collect_one(
     rc, stdout, stderr = await runner.run_python_zipapp(zipapp_bytes)
     if rc != 0:
       return RemoteResult(host_id=host_id, ok=False,
-                          error=f"remote exit {rc}: {stderr.strip()[:500]}")
+                          error=f"remote exit {rc}: {stderr.strip()}")
     data = json.loads(stdout)
     topo = SystemTopology(**data)
     return RemoteResult(host_id=host_id, ok=True, topology=topo)
