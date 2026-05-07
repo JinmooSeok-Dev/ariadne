@@ -175,6 +175,73 @@ def cluster_trace_cmd(
   typer.echo(_json.dumps(result.model_dump(), indent=2, ensure_ascii=False))
 
 
+@cluster_app.command("load")
+def cluster_load(
+  cluster_file: Path = typer.Argument(..., help="저장된 cluster.json 경로"),
+  summary: bool = typer.Option(True, "--summary/--no-summary",
+                               help="호스트/링크 요약 출력"),
+):
+  """저장된 cluster.json을 검증하고 요약을 출력한다 (오프라인, SSH 불필요)."""
+  from ariadne.model.cluster import ClusterTopology
+  cluster = ClusterTopology.model_validate_json(cluster_file.read_text())
+  if summary:
+    console.print(f"[bold]Cluster {cluster.cluster_id}[/]")
+    console.print(f"  collected_at: {cluster.collected_at}")
+    console.print(f"  hosts: {len(cluster.hosts)}")
+    for hid, topo in cluster.hosts.items():
+      pcis = topo.pci_devices
+      gpus = sum(1 for d in pcis if d.component_type == "gpu")
+      npus = sum(1 for d in pcis if d.component_type == "npu")
+      nics = sum(1 for d in pcis if d.component_type == "nic")
+      nvmes = sum(1 for d in pcis if d.component_type == "nvme")
+      console.print(
+        f"    [cyan]{hid}[/]: components={len(topo.components)} "
+        f"PCI={len(pcis)} (GPU {gpus}/NPU {npus}/NIC {nics}/NVMe {nvmes})"
+      )
+    console.print(f"  inter_host_links: {len(cluster.inter_host_links)}")
+    console.print(f"  groups: {dict((g, len(m)) for g, m in cluster.groups.items())}")
+
+
+@cluster_app.command("trace-saved")
+def cluster_trace_saved(
+  cluster_file: Path = typer.Argument(..., help="저장된 cluster.json 경로"),
+  source: str = typer.Argument(..., help="src — host_id::component_id"),
+  destination: str = typer.Argument(..., help="dst — host_id::component_id"),
+):
+  """저장된 cluster.json을 로드해 cross-host trace를 수행한다 (SSH 불필요)."""
+  import json as _json
+
+  from ariadne.analyzer.cluster_trace import trace_cluster
+  from ariadne.model.cluster import ClusterTopology
+
+  cluster = ClusterTopology.model_validate_json(cluster_file.read_text())
+  result = trace_cluster(cluster, source, destination)
+  typer.echo(_json.dumps(result.model_dump(), indent=2, ensure_ascii=False))
+
+
+@cluster_app.command("group-trace-saved")
+def cluster_group_trace_saved(
+  cluster_file: Path = typer.Argument(..., help="저장된 cluster.json 경로"),
+  spec_file: Path = typer.Argument(...,
+                                   help='{"src_ids":[...],"dst_ids":[...],"pattern":"all_to_all"} JSON'),
+):
+  """저장된 cluster.json + group spec JSON으로 M:N 그룹 trace 수행."""
+  import json as _json
+
+  from ariadne.analyzer.cluster_trace import trace_group
+  from ariadne.model.cluster import ClusterTopology
+
+  cluster = ClusterTopology.model_validate_json(cluster_file.read_text())
+  spec = _json.loads(spec_file.read_text())
+  result = trace_group(
+    cluster,
+    spec.get("src_ids") or [],
+    spec.get("dst_ids") or [],
+    pattern=spec.get("pattern", "all_to_all"),
+  )
+  typer.echo(_json.dumps(result.model_dump(), indent=2, ensure_ascii=False))
+
+
 def _interactive_select(topo, source_hint: str | None, dest_hint: str | None):
   """fuzzy 검색으로 source와 destination을 선택."""
   from InquirerPy import inquirer

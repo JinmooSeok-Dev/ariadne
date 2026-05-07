@@ -135,6 +135,67 @@ def test_whatif_endpoint_compares_baseline(client):
   assert "applied_params" in data
 
 
+def test_cluster_load_endpoint_caches(client):
+  """저장된 cluster.json 형태의 dict를 POST하면 캐시에 등록되어야 한다."""
+  payload = {
+    "cluster_id": "test-load",
+    "collected_at": "2026-01-01T00:00:00Z",
+    "hosts": {
+      "h1": {"hostname": "h1", "components": [], "links": [], "pci_devices": []}
+    },
+    "inter_host_links": [],
+    "groups": {"all": ["h1"]},
+  }
+  r = client.post("/api/cluster/load", json=payload)
+  assert r.status_code == 200
+  data = r.json()
+  assert data["cluster_id"] == "test-load"
+  assert "h1" in data["hosts"]
+  # 캐시에서 다시 GET 가능
+  r2 = client.get("/api/cluster/test-load")
+  assert r2.status_code == 200
+  assert r2.json()["cluster_id"] == "test-load"
+
+
+def test_cluster_load_endpoint_override_id(client):
+  """{cluster_id, cluster} 래핑 + cluster_id override 동작."""
+  payload = {
+    "cluster_id": "renamed",
+    "cluster": {
+      "cluster_id": "original",
+      "collected_at": "2026-01-01T00:00:00Z",
+      "hosts": {"h2": {"hostname": "h2", "components": [], "links": [], "pci_devices": []}},
+      "inter_host_links": [],
+      "groups": {},
+    },
+  }
+  r = client.post("/api/cluster/load", json=payload)
+  assert r.status_code == 200
+  assert r.json()["cluster_id"] == "renamed"
+  assert client.get("/api/cluster/renamed").status_code == 200
+
+
+def test_cluster_load_endpoint_rejects_invalid(client):
+  r = client.post("/api/cluster/load", json={"cluster": "not a dict"})
+  assert r.status_code == 200  # FastAPI returns 200 with error tuple
+  body = r.json()
+  assert isinstance(body, list) and body[1] == 400
+
+
+def test_static_cluster_js_has_load_handler(client):
+  r = client.get("/static/cluster.js")
+  assert r.status_code == 200
+  assert "loadClusterFile" in r.text
+  assert "/api/cluster/load" in r.text
+
+
+def test_cluster_html_has_load_button(client):
+  r = client.get("/cluster")
+  assert r.status_code == 200
+  assert "loadClusterFile" in r.text
+  assert "Load JSON" in r.text
+
+
 def test_simulate_endpoint_runs(client):
   graph = client.get("/api/topology/graph").json()
   traceable = ["gpu", "npu", "nvme", "nic", "memory_controller", "pcie_endpoint"]

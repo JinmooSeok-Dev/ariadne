@@ -213,6 +213,26 @@ async def api_cluster_build(spec: dict):
   return cluster.model_dump()
 
 
+@app.post("/api/cluster/load")
+async def api_cluster_load(spec: dict):
+  """저장된 cluster.json을 그대로 받아 캐시에 등록 (SSH 재수집 없이).
+
+  Body는 ClusterTopology JSON 자체 (cluster_id 포함). 또는
+  {"cluster_id": "...", "cluster": {...}} 형태도 허용.
+  """
+  payload = spec.get("cluster") if "cluster" in spec else spec
+  if not isinstance(payload, dict):
+    return {"error": "expected ClusterTopology JSON object"}, 400
+  try:
+    cluster = ClusterTopology.model_validate(payload)
+  except Exception as e:
+    return {"error": f"invalid ClusterTopology: {e}"}, 400
+  cid = spec.get("cluster_id") or cluster.cluster_id
+  cluster.cluster_id = cid
+  _cached_clusters[cid] = cluster
+  return cluster.model_dump()
+
+
 @app.get("/api/cluster/{cluster_id}")
 async def api_cluster_get(cluster_id: str):
   cluster = _cached_clusters.get(cluster_id)

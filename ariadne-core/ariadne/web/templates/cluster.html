@@ -42,6 +42,8 @@
   <div style="display:flex;flex-direction:column;gap:6px;">
     <button class="btn" style="background:var(--color-accent);color:#fff;" onclick="buildCluster()">Build</button>
     <button class="btn btn-gray" onclick="loadExample()">Example</button>
+    <input type="file" id="c-file" accept=".json,application/json" style="display:none;" onchange="loadClusterFile(event)">
+    <button class="btn btn-gray" onclick="document.getElementById('c-file').click()">Load JSON…</button>
   </div>
 </div>
 

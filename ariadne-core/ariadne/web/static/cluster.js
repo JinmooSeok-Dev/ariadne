@@ -73,6 +73,47 @@ async function buildCluster() {
   }
 }
 
+async function loadClusterFile(ev) {
+  hideError();
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  setStatus(`Loading ${file.name}…`);
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch (e) {
+    showError('JSON parse 실패: ' + e);
+    setStatus('실패');
+    return;
+  }
+  const overrideId = document.getElementById('c-cluster-id').value.trim();
+  const body = overrideId
+    ? {cluster_id: overrideId, cluster: payload}
+    : payload;
+  try {
+    const r = await fetch('/api/cluster/load', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showError('Load 실패: ' + (err.error || r.status));
+      setStatus('실패');
+      return;
+    }
+    const cluster = await r.json();
+    document.getElementById('c-cluster-id').value = cluster.cluster_id;
+    setStatus(`로드 완료 — ${Object.keys(cluster.hosts || {}).length} 호스트, ${(cluster.inter_host_links||[]).length} fabric link`);
+    renderCluster(cluster);
+  } catch (e) {
+    showError('Load 실패: ' + e);
+    setStatus('에러');
+  } finally {
+    ev.target.value = '';  // 같은 파일 재선택 가능하게
+  }
+}
+
 function renderCluster(cluster) {
   // Summary
   const sum = document.getElementById('c-summary');
