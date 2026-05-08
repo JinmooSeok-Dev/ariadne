@@ -1,6 +1,7 @@
 """E2E 경로 추적 및 BW/latency 분석."""
 
 import networkx as nx
+from pydantic import BaseModel, Field
 
 from ariadne.model.types import SystemTopology, ComponentType, ComponentPrefix as P, LinkType
 from ariadne.model.topology import to_networkx
@@ -22,18 +23,17 @@ DEFAULT_PARAMS = {
 }
 
 
-class TraceResult:
-  def __init__(self):
-    self.source: str = ""
-    self.destination: str = ""
-    self.source_name: str = ""
-    self.destination_name: str = ""
-    self.path: list[str] = []
-    self.segments: list[dict] = []
-    self.e2e_bandwidth_gbps: float = 0.0
-    self.e2e_latency_ns: float = 0.0
-    self.bottleneck: str = ""
-    self.same_numa: bool = True
+class TraceResult(BaseModel):
+  source: str = ""
+  destination: str = ""
+  source_name: str = ""
+  destination_name: str = ""
+  path: list[str] = Field(default_factory=list)
+  segments: list[dict] = Field(default_factory=list)
+  e2e_bandwidth_gbps: float = 0.0
+  e2e_latency_ns: float = 0.0
+  bottleneck: str = ""
+  same_numa: bool = True
 
 
 def trace_path(
@@ -149,6 +149,67 @@ def trace_path(
   result.bottleneck = bottleneck_seg
 
   return result
+
+
+class HostGroupTraceResult(BaseModel):
+  """단일 호스트 내 group communication 비용. cluster 단위는 cluster_trace.GroupTraceResult."""
+  pattern: str
+  src_ids: list[str]
+  dst_ids: list[str]
+  pair_results: list[TraceResult] = Field(default_factory=list)
+  aggregate_min_bandwidth_gbps: float = 0.0
+  aggregate_max_latency_ns: float = 0.0
+  total_pairs: int = 0
+
+
+def trace_group_in_host(
+  topo: SystemTopology,
+  src_ids: list[str],
+  dst_ids: list[str],
+  pattern: str = "all_to_all",
+  params: dict | None = None,
+) -> HostGroupTraceResult:
+  """단일 호스트 내 component 그룹 간 통신 비용을 페어별로 계산.
+
+  pattern: one_to_many | many_to_one | all_to_all | pairwise
+  ariadne는 collective(all-reduce 등) 명칭에 대한 가정 없이 일반화된 패턴만 노출.
+  소비자(예: lmtune)가 측면에서 자체 도메인에 매핑한다.
+  """
+  from itertools import product as _product
+
+  if pattern == "pairwise":
+    if len(src_ids) != len(dst_ids):
+      raise ValueError(
+        f"pairwise pattern requires equal length: src={len(src_ids)}, dst={len(dst_ids)}"
+      )
+    pairs = list(zip(src_ids, dst_ids))
+  elif pattern == "one_to_many":
+    if len(src_ids) != 1:
+      raise ValueError(f"one_to_many requires exactly 1 src, got {len(src_ids)}")
+    pairs = [(src_ids[0], d) for d in dst_ids]
+  elif pattern == "many_to_one":
+    if len(dst_ids) != 1:
+      raise ValueError(f"many_to_one requires exactly 1 dst, got {len(dst_ids)}")
+    pairs = [(s, dst_ids[0]) for s in src_ids]
+  elif pattern == "all_to_all":
+    pairs = [(s, d) for s, d in _product(src_ids, dst_ids) if s != d]
+  else:
+    raise ValueError(f"unknown pattern: {pattern}. one_to_many|many_to_one|all_to_all|pairwise")
+
+  results = [trace_path(topo, s, d, params=params) for s, d in pairs]
+
+  bws = [r.e2e_bandwidth_gbps for r in results if r.e2e_bandwidth_gbps > 0]
+  latencies = [r.e2e_latency_ns for r in results if r.e2e_latency_ns > 0]
+
+  return HostGroupTraceResult(
+    pattern=pattern,
+    src_ids=src_ids,
+    dst_ids=dst_ids,
+    pair_results=results,
+    aggregate_min_bandwidth_gbps=min(bws) if bws else 0.0,
+    aggregate_max_latency_ns=max(latencies) if latencies else 0.0,
+    total_pairs=len(pairs),
+  )
 
 
 def _get_component_name(topo: SystemTopology, comp_id: str) -> str:

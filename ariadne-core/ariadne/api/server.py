@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from ariadne.analyzer.cluster_trace import trace_cluster, trace_group
 from ariadne.analyzer.safety import analyze_sriov_safety
 from ariadne.analyzer.simulation import FlowSpec, simulate_flows
-from ariadne.analyzer.trace import trace_path
+from ariadne.analyzer.trace import trace_group_in_host, trace_path
 from ariadne.analyzer.transfer import list_transfer_modes
 from ariadne.model.settings import Settings, what_if_trace
 from ariadne.cluster.inventory import parse_inventory_dict
@@ -119,19 +119,25 @@ async def get_topology_graph():
 @app.get("/api/trace")
 async def api_trace(source: str, destination: str):
   topo = _get_topology()
-  result = trace_path(topo, source, destination)
-  return {
-    "source": result.source,
-    "destination": result.destination,
-    "source_name": result.source_name,
-    "destination_name": result.destination_name,
-    "path": result.path,
-    "segments": result.segments,
-    "e2e_bandwidth_gbps": result.e2e_bandwidth_gbps,
-    "e2e_latency_ns": result.e2e_latency_ns,
-    "bottleneck": result.bottleneck,
-    "same_numa": result.same_numa,
-  }
+  return trace_path(topo, source, destination).model_dump()
+
+
+@app.post("/api/group-trace")
+async def api_group_trace(body: dict):
+  """단일 호스트 내 그룹 trace.
+
+  Body: {"src_ids": [...], "dst_ids": [...], "pattern": "all_to_all"|...}
+  pattern: one_to_many | many_to_one | all_to_all | pairwise
+  """
+  topo = _get_topology()
+  src_ids = body.get("src_ids") or []
+  dst_ids = body.get("dst_ids") or []
+  pattern = body.get("pattern", "all_to_all")
+  try:
+    result = trace_group_in_host(topo, src_ids, dst_ids, pattern=pattern)
+  except ValueError as e:
+    return {"error": str(e)}, 400
+  return result.model_dump()
 
 
 @app.post("/api/topology/reload")

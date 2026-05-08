@@ -5,6 +5,7 @@ Public API for consumers (lmtune 등):
   Single-host:
     build_topology() → SystemTopology
     trace_path(topo, src_id, dst_id) → TraceResult
+    trace_group_in_host(topo, src_ids, dst_ids, pattern) → HostGroupTraceResult
     list_transfer_modes(topo, src_id, dst_id) → list[TransferModeOption]
     analyze_sriov_safety(topo) → list[SafetyIssue]
 
@@ -29,6 +30,8 @@ _LAZY_ATTRS = {
   "build_topology": "ariadne.model.topology",
   "trace_path": "ariadne.analyzer.trace",
   "TraceResult": "ariadne.analyzer.trace",
+  "trace_group_in_host": "ariadne.analyzer.trace",
+  "HostGroupTraceResult": "ariadne.analyzer.trace",
   "list_transfer_modes": "ariadne.analyzer.transfer",
   "TransferModeOption": "ariadne.analyzer.transfer",
   "analyze_sriov_safety": "ariadne.analyzer.safety",
@@ -87,7 +90,12 @@ if TYPE_CHECKING:  # 타입 체커가 보는 정적 import (런타임 영향 없
     trace_group,
   )
   from ariadne.analyzer.safety import SafetyIssue, analyze_sriov_safety
-  from ariadne.analyzer.trace import TraceResult, trace_path
+  from ariadne.analyzer.trace import (
+    HostGroupTraceResult,
+    TraceResult,
+    trace_group_in_host,
+    trace_path,
+  )
   from ariadne.analyzer.transfer import TransferModeOption, list_transfer_modes
   from ariadne.cluster.inventory import parse_inventory
   from ariadne.cluster.links import InterHostLink, infer_inter_host_links

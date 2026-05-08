@@ -196,6 +196,32 @@ def test_cluster_html_has_load_button(client):
   assert "Load JSON" in r.text
 
 
+def test_group_trace_endpoint_runs(client):
+  graph = client.get("/api/topology/graph").json()
+  traceable = ["gpu", "npu", "nvme", "nic", "memory_controller", "pcie_endpoint"]
+  nodes = [n for n in graph["nodes"] if n["data"]["type"] in traceable]
+  if len(nodes) < 2:
+    pytest.skip("traceable 노드 2개 미만")
+  src = nodes[0]["data"]["id"]
+  dst = nodes[1]["data"]["id"]
+  body = {"src_ids": [src], "dst_ids": [dst], "pattern": "one_to_many"}
+  r = client.post("/api/group-trace", json=body)
+  assert r.status_code == 200
+  data = r.json()
+  assert data["pattern"] == "one_to_many"
+  assert data["total_pairs"] == 1
+  assert "pair_results" in data
+  assert "aggregate_min_bandwidth_gbps" in data
+
+
+def test_group_trace_endpoint_rejects_invalid_pattern(client):
+  body = {"src_ids": ["gpu_0"], "dst_ids": ["gpu_1"], "pattern": "all_reduce"}
+  r = client.post("/api/group-trace", json=body)
+  assert r.status_code == 200  # FastAPI returns 200 with error tuple
+  body_json = r.json()
+  assert isinstance(body_json, list) and body_json[1] == 400
+
+
 def test_simulate_endpoint_runs(client):
   graph = client.get("/api/topology/graph").json()
   traceable = ["gpu", "npu", "nvme", "nic", "memory_controller", "pcie_endpoint"]
