@@ -39,12 +39,12 @@ def _get_topology() -> SystemTopology:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-  return templates.TemplateResponse("index.html", {"request": request})
+  return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/cluster", response_class=HTMLResponse)
 async def cluster_page(request: Request):
-  return templates.TemplateResponse("cluster.html", {"request": request})
+  return templates.TemplateResponse(request, "cluster.html")
 
 
 @app.get("/api/topology")
